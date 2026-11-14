@@ -101,57 +101,27 @@ jobs:
           echo "" >> docs/sendit-urls.txt
           
           for bin in $VERSION_DIR/*; do
-            name=$(basename $bin)
+            name=$(basename "$bin")
             echo "Uploading $name..."
-            url=$(curl -sT "$bin" https://sendit.sh/ | grep -oE 'https://sendit\.sh/[A-Za-z0-9/_-]+' | head -1)
+            # Небольшая задержка, чтобы избежать рейт-лимита sendit.sh
+            sleep 1
+            response=$(curl -sT "$bin" https://sendit.sh/)
+            url=$(echo "$response" | grep -oE 'https://sendit\.sh/[A-Za-z0-9_-]+' | head -1)
             if [ -n "$url" ]; then
               echo "$name: $url" >> docs/sendit-urls.txt
               echo "  ✓ $url"
             else
-              echo "  ✗ Failed"
+              echo "  ✗ Failed. Response: $response"
             fi
           done
           
           cat docs/sendit-urls.txt
 
-      - name: Commit and Push safely to main
-        run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          
-          cat > docs/tools-urls.txt << EOF
-          # Qwen Tools URLs
-          # Version: ${{ steps.version.outputs.version }}
-          
-          version: ${{ steps.version.outputs.version }}
-          qwen: binaries/latest/qwen-linux-amd64
-          staticcheck: binaries/latest/staticcheck-linux-amd64
-          gosec: binaries/latest/gosec-linux-amd64
-          errcheck: binaries/latest/errcheck-linux-amd64
-          govulncheck: binaries/latest/govulncheck-linux-amd64
-          golangci-lint: binaries/latest/golangci-lint-linux-amd64
-          goimports: binaries/latest/goimports-linux-amd64
-          revive: binaries/latest/revive-linux-amd64
-          deadcode: binaries/latest/deadcode-linux-amd64
-          ineffassign: binaries/latest/ineffassign-linux-amd64
-          unconvert: binaries/latest/unconvert-linux-amd64
-          bodyclose: binaries/latest/bodyclose-linux-amd64
-          EOF
-          
-          git add binaries/ docs/
-          
-          if git diff --staged --quiet; then
-            echo "No changes to commit"
-          else
-            # 1. Commit on the current detached HEAD
-            git commit -m "release: ${{ steps.version.outputs.version }} binaries and URLs"
-            
-            # 2. Fetch the latest main branch
-            git fetch origin main
-            
-            # 3. Rebase our new commit on top of origin/main
-            git rebase origin/main
-            
-            # 4. Push the rebased commit to main
-            git push origin HEAD:main
-          fi
+      - name: Commit and push changes to main
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "release: ${{ steps.version.outputs.version }} binaries and URLs"
+          branch: main
+          file_pattern: "binaries/ docs/"
+          commit_user_name: GitHub Actions
+          commit_user_email: actions@github.com
