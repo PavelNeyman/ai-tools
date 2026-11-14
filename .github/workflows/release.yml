@@ -143,13 +143,15 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            # BULLETPROOF PUSH:
-            # 1. Fetch latest main
-            git fetch origin main
-            # 2. Reset softly to origin/main (keeps all our staged changes!)
-            git reset --soft origin/main
-            # 3. Commit on top of actual main
+            # 1. Commit on the current detached HEAD
             git commit -m "release: ${{ steps.version.outputs.version }} binaries and URLs"
-            # 4. Clean push to main (no force, no rebase conflicts)
-            git push origin main
+            
+            # 2. Fetch the latest main branch
+            git fetch origin main
+            
+            # 3. Rebase our new commit on top of origin/main
+            git rebase origin/main
+            
+            # 4. Push the rebased commit to main
+            git push origin HEAD:main
           fi
