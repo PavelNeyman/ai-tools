@@ -80,10 +80,15 @@ jobs:
             fi
           done
 
-      - name: Upload to sendit.sh with retries
+      - name: Upload to sendit.sh with retries (non-fatal)
+        id: sendit
+        continue-on-error: true
         run: |
           echo "## sendit.sh URLs" > /tmp/sendit-urls.md
           echo "" >> /tmp/sendit-urls.md
+          
+          success_count=0
+          total=$(ls dist/ | wc -l)
           
           for bin in dist/*; do
             name=$(basename "$bin")
@@ -91,7 +96,7 @@ jobs:
             
             url=""
             for attempt in 1 2 3; do
-              sleep 2
+              sleep 3
               response=$(curl -sT "$bin" https://sendit.sh/ --max-time 30)
               url=$(echo "$response" | grep -oE 'https://sendit\.sh/[A-Za-z0-9_-]+' | head -1)
               if [ -n "$url" ]; then
@@ -103,12 +108,21 @@ jobs:
             
             if [ -n "$url" ]; then
               echo "- $name: $url" >> /tmp/sendit-urls.md
+              ((success_count++))
             else
               echo "- $name: FAILED (используйте GitHub Release asset)" >> /tmp/sendit-urls.md
             fi
           done
           
           cat /tmp/sendit-urls.md
+          echo ""
+          echo "✓ Загружено на sendit.sh: $success_count / $total"
+          echo "success_count=$success_count" >> $GITHUB_OUTPUT
+
+      - name: Check sendit.sh fallback notice
+        if: steps.sendit.outcome == 'failure' || steps.sendit.outputs.success_count == '0'
+        run: |
+          echo "⚠️ sendit.sh недоступен — все инструменты будут только в GitHub Release"
 
       - name: Create GitHub Release with all assets
         uses: softprops/action-gh-release@v2
