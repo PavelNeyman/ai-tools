@@ -5,6 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -177,98 +178,69 @@ func installTools() {
 }
 
 func fetchTools() {
-	fmt.Println("Загрузка инструментов...")
+	fmt.Println("Загрузка инструментов из GitHub Release...")
 	
-	urlsURL := "https://raw.githubusercontent.com/PavelNeyman/qwen-tools/main/docs/tools-urls.txt"
-	resp, err := http.Get(urlsURL)
+	// Получаем информацию о последнем релизе через API
+	apiURL := "https://api.github.com/repos/PavelNeyman/qwen-tools/releases/latest"
+	resp, err := http.Get(apiURL)
 	if err != nil {
-		fmt.Printf("✗ Ошибка загрузки tools-urls.txt: %v\n", err)
+		fmt.Printf("✗ Ошибка запроса к GitHub API: %v\n", err)
 		os.Exit(1)
 	}
 	defer resp.Body.Close()
+	
 	body, _ := io.ReadAll(resp.Body)
-	urlsContent := string(body)
 	
-	senditURL := "https://raw.githubusercontent.com/PavelNeyman/qwen-tools/main/docs/sendit-urls.txt"
-	resp2, err := http.Get(senditURL)
-	senditContent := ""
-	if err == nil {
-		defer resp2.Body.Close()
-		body2, _ := io.ReadAll(resp2.Body)
-		senditContent = string(body2)
+	// Парсим JSON чтобы получить assets
+	var release struct {
+		TagName string `json:"tag_name"`
+		Assets  []struct {
+			Name               string `json:"name"`
+			BrowserDownloadURL string `json:"browser_download_url"`
+			Size               int64  `json:"size"`
+		} `json:"assets"`
 	}
 	
-	toolsMap := make(map[string]string)
-	for _, line := range strings.Split(urlsContent, "\n") {
-		if strings.HasPrefix(line, "#") || line == "" {
-			continue
-		}
-		parts := strings.SplitN(line, ":", 2)
-		if len(parts) == 2 {
-			name := strings.TrimSpace(parts[0])
-			path := strings.TrimSpace(parts[1])
-			if name != "version" {
-				toolsMap[name] = "repo:" + path
-			}
-		}
+	if err := json.Unmarshal(body, &release); err != nil {
+		fmt.Printf("✗ Ошибка парсинга JSON: %v\n", err)
+		os.Exit(1)
 	}
 	
-	if senditContent != "" {
-		for _, line := range strings.Split(senditContent, "\n") {
-			if strings.HasPrefix(line, "#") || line == "" {
-				continue
-			}
-			parts := strings.SplitN(line, ":", 2)
-			if len(parts) == 2 {
-				name := strings.TrimSpace(parts[0])
-				url := strings.TrimSpace(parts[1])
-				if strings.HasPrefix(url, "https://sendit.sh/") {
-					toolsMap[name] = "sendit:" + url
-				}
-			}
-		}
-	}
+	fmt.Printf("Релиз: %s, найдено %d инструментов\n", release.TagName, len(release.Assets))
 	
-	for name, source := range toolsMap {
-		var tool *Tool
-		for i := range toolRegistry {
-			if toolRegistry[i].Name == name {
-				tool = &toolRegistry[i]
-				break
-			}
-		}
-		if tool == nil {
+	// Скачиваем каждый инструмент
+	for _, asset := range release.Assets {
+		// Пропускаем сам qwen (он уже скачан)
+		if asset.Name == "qwen-linux-amd64" {
 			continue
 		}
 		
-		if _, err := os.Stat(tool.Local); err == nil {
-			fmt.Printf("✓ %s уже установлен\n", name)
+		// Извлекаем имя инструмента (убираем суффикс -linux-amd64)
+		toolName := strings.TrimSuffix(asset.Name, "-linux-amd64")
+		localPath := "/tmp/" + toolName
+		
+		// Проверяем, уже установлен ли
+		if _, err := os.Stat(localPath); err == nil {
+			fmt.Printf("✓ %s уже установлен\n", toolName)
 			continue
 		}
 		
-		fmt.Printf("Загрузка %s...\n", name)
+		fmt.Printf("Загрузка %s (%.2f МБ)...\n", toolName, float64(asset.Size)/1024/1024)
 		
-		var downloadURL string
-		if strings.HasPrefix(source, "sendit:") {
-			downloadURL = strings.TrimPrefix(source, "sendit:")
-		} else {
-			repoPath := strings.TrimPrefix(source, "repo:")
-			downloadURL = "https://raw.githubusercontent.com/PavelNeyman/qwen-tools/main/" + repoPath
-		}
-		
-		resp, err := http.Get(downloadURL)
+		// Скачиваем
+		resp, err := http.Get(asset.BrowserDownloadURL)
 		if err != nil {
-			fmt.Printf("✗ Ошибка скачивания %s: %v\n", name, err)
+			fmt.Printf("✗ Ошибка скачивания %s: %v\n", toolName, err)
 			continue
 		}
 		defer resp.Body.Close()
 		
 		data, _ := io.ReadAll(resp.Body)
-		os.MkdirAll(filepath.Dir(tool.Local), 0755)
-		os.WriteFile(tool.Local, data, 0755)
-		fmt.Printf("✓ %s загружен\n", name)
+		os.WriteFile(localPath, data, 0755)
+		fmt.Printf("✓ %s загружен\n", toolName)
 	}
 	
+	// Загружаем Go
 	if _, err := os.Stat("/tmp/go/bin/go"); err != nil {
 		fmt.Println("Загрузка Go 1.22.5...")
 		cmd := exec.Command("bash", "-c", 
