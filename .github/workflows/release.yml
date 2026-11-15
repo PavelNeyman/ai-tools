@@ -13,8 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - uses: actions/setup-go@v5
         with:
@@ -25,103 +23,97 @@ jobs:
         run: |
           TAG=${GITHUB_REF#refs/tags/}
           echo "version=${TAG}" >> $GITHUB_OUTPUT
-          echo "timestamp=$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
 
-      - name: Build qwen (STRICTLY linux/amd64)
+      - name: Build qwen (linux/amd64 only)
         run: |
-          VERSION_DIR="binaries/${{ steps.version.outputs.version }}"
-          mkdir -p $VERSION_DIR
-          echo "Building qwen for linux/amd64..."
+          mkdir -p dist
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
             -ldflags="-s -w" \
-            -o $VERSION_DIR/qwen-linux-amd64 \
+            -o dist/qwen-linux-amd64 \
             ./cmd/qwen
 
-      - name: Download tools (STRICTLY linux/amd64)
+      - name: Download tools (linux/amd64 only)
         run: |
-          VERSION_DIR="binaries/${{ steps.version.outputs.version }}"
-          mkdir -p $VERSION_DIR
+          mkdir -p dist
           
           curl -sL https://github.com/dominikh/go-tools/releases/download/2024.1.1/staticcheck_linux_amd64.tar.gz | tar -xz
-          mv staticcheck/staticcheck $VERSION_DIR/staticcheck-linux-amd64
+          mv staticcheck/staticcheck dist/staticcheck-linux-amd64
           
           curl -sL https://github.com/securego/gosec/releases/download/v2.21.4/gosec_2.21.4_linux_amd64.tar.gz | tar -xz
-          mv gosec $VERSION_DIR/gosec-linux-amd64
+          mv gosec dist/gosec-linux-amd64
           
           go install github.com/kisielk/errcheck@latest
-          mv $(go env GOPATH)/bin/errcheck $VERSION_DIR/errcheck-linux-amd64
+          mv $(go env GOPATH)/bin/errcheck dist/errcheck-linux-amd64
           
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          mv $(go env GOPATH)/bin/govulncheck $VERSION_DIR/govulncheck-linux-amd64
+          mv $(go env GOPATH)/bin/govulncheck dist/govulncheck-linux-amd64
           
           curl -sL https://github.com/golangci/golangci-lint/releases/download/v1.61.0/golangci-lint-1.61.0-linux-amd64.tar.gz | tar -xz
-          mv golangci-lint-1.61.0-linux-amd64/golangci-lint $VERSION_DIR/golangci-lint-linux-amd64
+          mv golangci-lint-1.61.0-linux-amd64/golangci-lint dist/golangci-lint-linux-amd64
           
           go install golang.org/x/tools/cmd/goimports@latest
-          mv $(go env GOPATH)/bin/goimports $VERSION_DIR/goimports-linux-amd64
+          mv $(go env GOPATH)/bin/goimports dist/goimports-linux-amd64
           
           go install github.com/mgechev/revive@latest
-          mv $(go env GOPATH)/bin/revive $VERSION_DIR/revive-linux-amd64
+          mv $(go env GOPATH)/bin/revive dist/revive-linux-amd64
           
           go install golang.org/x/tools/cmd/deadcode@latest
-          mv $(go env GOPATH)/bin/deadcode $VERSION_DIR/deadcode-linux-amd64
+          mv $(go env GOPATH)/bin/deadcode dist/deadcode-linux-amd64
           
           go install github.com/gordonklaus/ineffassign@latest
-          mv $(go env GOPATH)/bin/ineffassign $VERSION_DIR/ineffassign-linux-amd64
+          mv $(go env GOPATH)/bin/ineffassign dist/ineffassign-linux-amd64
           
           go install github.com/mdempsky/unconvert@latest
-          mv $(go env GOPATH)/bin/unconvert $VERSION_DIR/unconvert-linux-amd64
+          mv $(go env GOPATH)/bin/unconvert dist/unconvert-linux-amd64
           
           go install github.com/timakin/bodyclose@latest
-          mv $(go env GOPATH)/bin/bodyclose $VERSION_DIR/bodyclose-linux-amd64
+          mv $(go env GOPATH)/bin/bodyclose dist/bodyclose-linux-amd64
           
-          chmod +x $VERSION_DIR/*
-          rm -rf binaries/latest
-          cp -r $VERSION_DIR binaries/latest
+          chmod +x dist/*
 
       - name: Compress binaries
         run: |
           sudo apt-get update && sudo apt-get install -y upx
-          VERSION_DIR="binaries/${{ steps.version.outputs.version }}"
-          for bin in $VERSION_DIR/*; do
+          for bin in dist/*; do
             if file "$bin" | grep -q "ELF"; then
               upx --best --lzma "$bin" || true
             fi
           done
-          rm -rf binaries/latest
-          cp -r $VERSION_DIR binaries/latest
 
-      - name: Upload to sendit.sh
+      - name: Upload to sendit.sh with retries
         run: |
-          VERSION_DIR="binaries/${{ steps.version.outputs.version }}"
-          mkdir -p docs
+          echo "## sendit.sh URLs" > /tmp/sendit-urls.md
+          echo "" >> /tmp/sendit-urls.md
           
-          echo "# sendit.sh URLs" > docs/sendit-urls.txt
-          echo "# Version: ${{ steps.version.outputs.version }}" >> docs/sendit-urls.txt
-          echo "" >> docs/sendit-urls.txt
-          
-          for bin in $VERSION_DIR/*; do
+          for bin in dist/*; do
             name=$(basename "$bin")
             echo "Uploading $name..."
-            # Небольшая задержка, чтобы избежать рейт-лимита sendit.sh
-            sleep 1
-            response=$(curl -sT "$bin" https://sendit.sh/)
-            url=$(echo "$response" | grep -oE 'https://sendit\.sh/[A-Za-z0-9_-]+' | head -1)
+            
+            url=""
+            for attempt in 1 2 3; do
+              sleep 2
+              response=$(curl -sT "$bin" https://sendit.sh/ --max-time 30)
+              url=$(echo "$response" | grep -oE 'https://sendit\.sh/[A-Za-z0-9_-]+' | head -1)
+              if [ -n "$url" ]; then
+                echo "  ✓ $url (попытка $attempt)"
+                break
+              fi
+              echo "  ⚠ Попытка $attempt не удалась"
+            done
+            
             if [ -n "$url" ]; then
-              echo "$name: $url" >> docs/sendit-urls.txt
-              echo "  ✓ $url"
+              echo "- $name: $url" >> /tmp/sendit-urls.md
             else
-              echo "  ✗ Failed. Response: $response"
+              echo "- $name: FAILED (используйте GitHub Release asset)" >> /tmp/sendit-urls.md
             fi
           done
           
-          cat docs/sendit-urls.txt
+          cat /tmp/sendit-urls.md
 
-      - name: Commit and push changes to main
-        uses: stefanzweifel/git-auto-commit-action@v5
+      - name: Create GitHub Release with all assets
+        uses: softprops/action-gh-release@v2
         with:
-          commit_message: "release: ${{ steps.version.outputs.version }} binaries and URLs"
-          branch: main
-          file_pattern: "binaries/ docs/"
-          commit_user_name: GitHub Actions
-          commit_user_email: actions@github.com
+          files: dist/*
+          body_path: /tmp/sendit-urls.md
+          generate_release_notes: true
+          fail_on_unmatched_files: false
