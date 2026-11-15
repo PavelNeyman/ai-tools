@@ -118,3 +118,58 @@ subprocess.Popen(['nohup','bash','/tmp/run.sh'], stdout=open('/tmp/out/run.log',
 release.yml, триггер тег v*: сборка qwen (linux/amd64) -> 11 анализаторов -> UPX ->
 sendit.sh (continue-on-error) -> softprops/action-gh-release прикрепляет ассеты.
 Бинарники в git не коммитятся. Новый релиз: тег vX.Y.Z.
+
+## 7. Что реально работает в песочнице (проверено)
+
+| Хост | Статус |
+|---|---|
+| api.github.com | работает всегда, быстро |
+| codeload.github.com | работает, очень быстро (150 МБ за ~8 с) |
+| raw.githubusercontent.com | Connection reset |
+| release-assets.githubusercontent.com (CDN релизов) | часто виснет/рвётся |
+| dl.google.com | работает |
+
+**Вывод:** качать не через Release Assets и не через raw, а через codeload-архив:
+
+```python
+import urllib.request, tarfile, io, os
+d = urllib.request.urlopen('https://codeload.github.com/PavelNeyman/qwen-tools/tar.gz/refs/heads/main', timeout=300).read()
+tf = tarfile.open(fileobj=io.BytesIO(d))
+for n in tf.getnames():
+    if '/binaries/latest/' in n and n.endswith('linux-amd64'):
+        base = os.path.basename(n).replace('-linux-amd64','')
+        open('/tmp/'+base,'wb').write(tf.extractfile(n).read())
+        os.chmod('/tmp/'+base, 0o755)
+```
+
+В git-истории ещё лежит каталог binaries/ (наследие ранних сборок) — это резервный канал доставки.
+
+### Go-инструментам нужен HOME и GOCACHE
+
+Без них staticcheck падает с 'failed to initialize build cache at : mkdir :'. Всегда задавать:
+HOME=/tmp, GOCACHE=/tmp/gocache (не /dev/shm — его может не быть), GOMODCACHE, GOPATH, GOROOT.
+
+## 8. Долгий анализ — только в CI
+
+Песочница пересоздаётся каждые несколько минут и убивает фоновые процессы вместе с /tmp.
+Прогон 778 файлов Go не укладывается в это окно. Правильное место — GitHub Actions.
+
+Готовый пайплайн: **PavelNeyman/netductor-audit** (приватный репозиторий).
+
+- .github/workflows/audit.yml — workflow_dispatch с inputs repo/ref
+- качает анализаторы из релиза qwen-tools, гоняет staticcheck/gosec/errcheck/vet/
+  ineffassign/unconvert/revive/deadcode/govulncheck
+- scripts/summarize.py собирает Markdown-отчёт
+- результат коммитится в reports/latest.md + сырые JSON в raw/
+
+Запуск и чтение через API (нужен только api.github.com, который не блокируется):
+
+```python
+POST /repos/PavelNeyman/netductor-audit/actions/workflows/audit.yml/dispatches
+     {'ref':'main','inputs':{'repo':'PavelNeyman/netductor','ref':'main'}}
+GET  /repos/PavelNeyman/netductor-audit/actions/runs?per_page=1
+GET  /repos/PavelNeyman/netductor-audit/contents/reports/latest.md
+```
+
+Приватный репозиторий выбран специально: отчёт gosec/govulncheck — это карта уязвимостей,
+в публичный репозиторий или на sendit.sh такое класть нельзя.
