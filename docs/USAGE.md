@@ -33,9 +33,9 @@ Download all tools from GitHub Release v1.6.2 using Python urllib (bypasses sand
 - aitools exec CMD [ARGS] — execute command
 - aitools read PATH — read file
 - aitools write PATH CONTENT — write file
-- qwen find PATTERN DIR — find files
-- qwen tree DIR [DEPTH] — directory tree
-- qwen http METHOD URL — HTTP request
+- aitools find PATTERN DIR — find files
+- aitools tree DIR [DEPTH] — directory tree
+- aitools http METHOD URL — HTTP request
 
 ### Encryption (AES-256-GCM)
 - aitools encrypt FILE KEY — encrypt file
