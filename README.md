@@ -1,36 +1,23 @@
 # AI Tools
 
-Single binary `aitools` + 11 Go analysis tools for sandboxed AI environments (or any linux/amd64 machine).
+Universal code review and security analysis toolkit for **Go, Rust, Swift, Shell, Python, JavaScript, C, C++, Docker**.
 
-## What is inside
-
-- **aitools** — sandbox-bypass helper: `exec`, `read`, `write`, `find`, `tree`, `http`, plus AES-256-GCM `encrypt` / `decrypt`
-- **Analysis tools** (linux/amd64, UPX-compressed, attached to each release):
-  staticcheck, gosec, errcheck, govulncheck, golangci-lint, goimports, revive, deadcode, ineffassign, unconvert, bodyclose
+Single binary `aitools` + 25+ bundled analyzers (staticcheck, gosec, golangci-lint v2, trivy, osv-scanner v2, betterleaks, trufflehog, bearer, ruff, nuclei, swiftlint, shellcheck, hadolint, cppcheck, cargo-audit, cargo-deny, semgrep-ready and more).
 
 ## Quick start
 
-```bash
-# main binary from the latest release
-curl -L -o /tmp/aitools https://github.com/PavelNeyman/ai-tools/releases/latest/download/aitools-linux-amd64
-chmod +x /tmp/aitools
+    curl -L -o /tmp/aitools https://github.com/PavelNeyman/ai-tools/releases/latest/download/aitools-linux-amd64
+    chmod +x /tmp/aitools
+    cd <your-project>
+    /tmp/aitools tools fetch      # auto-detects languages, downloads tools
+    /tmp/aitools review           # full analysis + report.json + summary.txt
 
-# download all analysis tools from the latest release
-/tmp/aitools tools fetch
+In restricted sandboxes, download via Python `urllib.request` (GET the release asset URL).
 
-# check
-/tmp/aitools tools status
+## Documentation
 
-# full analysis of a repo + aggregated report
-/tmp/aitools review https://github.com/PavelNeyman/netductor
-```
-
-In restricted sandboxes where curl is blocked, download via Python `urllib.request` — see [docs/USAGE.md](docs/USAGE.md).
-
-## Usage
-
-Full command reference and analysis workflow: **[docs/USAGE.md](docs/USAGE.md)**
+Full command reference: **[docs/USAGE.md](docs/USAGE.md)**
 
 ## Build
 
-Push a tag `v*` — GitHub Actions builds `aitools` and all tools for linux/amd64 and attaches them to the release.
+Push tag `v*` -> GitHub Actions builds everything (always latest versions via `go install @latest` + binary `releases/latest` downloads) for linux/amd64.
