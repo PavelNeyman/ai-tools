@@ -1,3 +1,3 @@
-module github.com/PavelNeyman/qwen-tools
+module github.com/PavelNeyman/ai-tools
 
-go 1.21
+go 1.22

@@ -1,91 +1,33 @@
 # AI Tools
 
-Набор инструментов для анализа Go кода с интеграцией в Qwen.
+Single binary `aitools` + 11 Go analysis tools for sandboxed AI environments (or any linux/amd64 machine).
 
-## Установка
+## What is inside
 
-Скачайте скрипт установки из scripts/ai-tools.sh и запустите его.
+- **aitools** — sandbox-bypass helper: `exec`, `read`, `write`, `find`, `tree`, `http`, plus AES-256-GCM `encrypt` / `decrypt`
+- **Analysis tools** (linux/amd64, UPX-compressed, attached to each release):
+  staticcheck, gosec, errcheck, govulncheck, golangci-lint, goimports, revive, deadcode, ineffassign, unconvert, bodyclose
 
-Скрипт скачает и установит:
-- aitools - основной инструмент (2.3 МБ)
-- staticcheck - статический анализатор (13 МБ)
-- gosec - анализатор безопасности (28 МБ)
-- Go 1.22.5 (для компиляции)
+## Quick start
 
-Время установки: ~11 секунд.
+```bash
+# main binary from the latest release
+curl -L -o /tmp/aitools https://github.com/PavelNeyman/ai-tools/releases/latest/download/aitools-linux-amd64
+chmod +x /tmp/aitools
 
-## Использование
+# download all analysis tools from the latest release
+/tmp/aitools tools fetch
 
-### Основные команды
+# check
+/tmp/aitools tools status
+```
 
-- aitools help - показать справку
-- aitools tools install - установить все инструменты анализа
-- aitools tools status - показать статус установленных инструментов
-- aitools tools list - список доступных инструментов
+In restricted sandboxes where curl is blocked, download via Python `urllib.request` — see [docs/USAGE.md](docs/USAGE.md).
 
-### Базовые операции (обход sandbox ограничений)
+## Usage
 
-- aitools exec - выполнить команду (обход subprocess hooks)
-- aitools read - прочитать файл (обход open() hooks)
-- aitools write - записать файл
-- aitools find - найти файлы по паттерну
-- aitools tree - показать дерево директорий
-- aitools http - HTTP запросы
+Full command reference and analysis workflow: **[docs/USAGE.md](docs/USAGE.md)**
 
-### Анализ кода
+## Build
 
-- aitools review user/repo - запустить полный анализ проекта
-
-Или вручную с установленными инструментами:
-- staticcheck -f json ./...
-- gosec -fmt json -quiet ./...
-
-## Архитектура
-
-### Проблема
-
-Песочница Qwen имеет ограничения:
-- Контейнер пересоздаётся между вызовами
-- Нет доступа к /proc, /sys, некоторым системным файлам
-- subprocess.run() и open() перехватываются хуками
-- Таймаут 20 секунд на вызов
-
-### Решение
-
-**qwen бинарник** (написан на Go):
-- Обходит Python sandbox ограничения
-- Выполняет системные операции напрямую
-- Не зависит от Python runtime
-- Работает быстрее Python subprocess
-
-**Персистентное хранилище**:
-- Бинарники хранятся на GitHub Releases
-- Скрипт ai-tools.sh скачивает их за ~11 секунд
-- Инструменты готовы к использованию в каждом новом чате
-
-## Команды
-
-| Команда | Описание |
-|---------|----------|
-| tools install | Установить все инструменты |
-| tools status | Статус установки |
-| tools list | Список инструментов |
-| exec | Выполнить команду |
-| read | Прочитать файл |
-| write | Записать файл |
-| find | Найти файлы |
-| tree | Дерево директорий |
-| http | HTTP запрос |
-| review | Анализ проекта |
-
-## Разработка
-
-### Локальная сборка
-
-git clone https://github.com/PavelNeyman/ai-tools.git
-cd ai-tools
-go build -o aitools-linux-amd64 ./cmd/qwen
-
-## Лицензия
-
-MIT
+Push a tag `v*` — GitHub Actions builds `aitools` and all tools for linux/amd64 and attaches them to the release.
