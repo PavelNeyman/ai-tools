@@ -768,6 +768,7 @@ func decryptCmd() {
 		os.Exit(1)
 	}
 	
+	var decoded []byte
 	decoded, err = base64.StdEncoding.DecodeString(string(data))
 	if err != nil {
 		fmt.Printf("Error decoding: %v\n", err)
