@@ -122,7 +122,7 @@ func printUsage() {
 	fmt.Println(`aitools - единый инструмент для ревью кода
 
 Usage:
-  qwen <command> [arguments]
+  aitools <command> [arguments]
 
 Commands:
   tools install    Установить все инструменты анализа
@@ -210,7 +210,7 @@ func fetchTools() {
 	
 	// Скачиваем каждый инструмент
 	for _, asset := range release.Assets {
-		// Пропускаем сам qwen (он уже скачан)
+		// Пропускаем сам aitools (он уже скачан)
 		if asset.Name == "aitools-linux-amd64" {
 			continue
 		}
