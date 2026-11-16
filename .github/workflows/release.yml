@@ -24,69 +24,54 @@ jobs:
           VERSION=$(git describe --tags --always --dirty)
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.Version=$VERSION" -o dist/aitools-linux-amd64 ./cmd/aitools
       
-      - name: Download Go tools (always @latest)
+      - name: Download additional tools from GitHub releases
         run: |
-          GOBIN=$(pwd)/dist go install github.com/securego/gosec/v2/cmd/gosec@latest
-          GOBIN=$(pwd)/dist go install honnef.co/go/tools/cmd/staticcheck@latest
-          GOBIN=$(pwd)/dist go install github.com/kisielk/errcheck@latest
-          GOBIN=$(pwd)/dist go install golang.org/x/vuln/cmd/govulncheck@latest
-          GOBIN=$(pwd)/dist go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-          GOBIN=$(pwd)/dist go install mvdan.cc/gofumpt@latest
-          GOBIN=$(pwd)/dist go install github.com/mgechev/revive@latest
-          GOBIN=$(pwd)/dist go install golang.org/x/tools/cmd/goimports@latest
-          GOBIN=$(pwd)/dist go install github.com/timakin/bodyclose@latest
-          GOBIN=$(pwd)/dist go install github.com/mdempsky/unconvert@latest
-          GOBIN=$(pwd)/dist go install github.com/gordonklaus/ineffassign@latest
-          GOBIN=$(pwd)/dist go install golang.org/x/tools/cmd/deadcode@latest
-          GOBIN=$(pwd)/dist go install go.uber.org/nilaway/cmd/nilaway@latest
-          GOBIN=$(pwd)/dist go install github.com/go-critic/go-critic/cmd/gocritic@latest
-          GOBIN=$(pwd)/dist go install github.com/google/osv-scanner/cmd/osv-scanner@latest
-      
-      - name: Download Nuclei (runtime scanner)
-        run: |
+          mkdir -p dist
+          
+          # Nuclei (runtime scanner)
           NUCLEI_VERSION=$(curl -s https://api.github.com/repos/projectdiscovery/nuclei/releases/latest | jq -r .tag_name)
           curl -sL "https://github.com/projectdiscovery/nuclei/releases/download/$NUCLEI_VERSION/nuclei_${NUCLEI_VERSION#v}_linux_amd64.zip" -o /tmp/nuclei.zip
-          unzip -q /tmp/nuclei.zip -d dist/
-          mv dist/nuclei dist/nuclei-linux-amd64
-      
-      - name: Download SwiftLint
-        run: |
+          unzip -q /tmp/nuclei.zip -d /tmp/nuclei && mv /tmp/nuclei/nuclei dist/nuclei-linux-amd64
+          
+          # SwiftLint
           SWIFTLINT_VERSION=$(curl -s https://api.github.com/repos/realm/SwiftLint/releases/latest | jq -r .tag_name)
           curl -sL "https://github.com/realm/SwiftLint/releases/download/$SWIFTLINT_VERSION/swiftlint_linux_amd64.zip" -o /tmp/swiftlint.zip
-          unzip -q /tmp/swiftlint.zip -d dist/
-          mv dist/swiftlint dist/swiftlint-linux-amd64
-      
-      - name: Download ShellCheck
-        run: |
+          unzip -q /tmp/swiftlint.zip -d /tmp/swiftlint && mv /tmp/swiftlint/swiftlint dist/swiftlint-linux-amd64
+          
+          # ShellCheck
           SHELLCHECK_VERSION=$(curl -s https://api.github.com/repos/koalaman/shellcheck/releases/latest | jq -r .tag_name)
-          curl -sL "https://github.com/koalaman/shellcheck/releases/download/$SHELLCHECK_VERSION/shellcheck-${SHELLCHECK_VERSION}.linux.x86_64.tar.xz" | tar -xJ -C /tmp/
-          mv /tmp/shellcheck-${SHELLCHECK_VERSION}/shellcheck dist/shellcheck-linux-amd64
-      
-      - name: Download Hadolint
-        run: |
+          curl -sL "https://github.com/koalaman/shellcheck/releases/download/$SHELLCHECK_VERSION/shellcheck-${SHELLCHECK_VERSION}.linux.x86_64.tar.xz" -o /tmp/shellcheck.tar.xz
+          tar -xf /tmp/shellcheck.tar.xz -C /tmp && mv /tmp/shellcheck-${SHELLCHECK_VERSION}/shellcheck dist/shellcheck-linux-amd64
+          
+          # Hadolint
           HADOLINT_VERSION=$(curl -s https://api.github.com/repos/hadolint/hadolint/releases/latest | jq -r .tag_name)
-          curl -sL "https://github.com/hadolint/hadolint/releases/download/$HADOLINT_VERSION/hadolint-linux-x86_64" -o dist/hadolint-linux-amd64
+          curl -sL "https://github.com/hadolint/hadolint/releases/download/$HADOLINT_VERSION/hadolint-Linux-x86_64" -o dist/hadolint-linux-amd64
           chmod +x dist/hadolint-linux-amd64
+          
+          # Cppcheck
+          CPPCHECK_VERSION=$(curl -s https://api.github.com/repos/danmar/cppcheck/releases/latest | jq -r .tag_name)
+          sudo apt-get update -qq && sudo apt-get install -y cppcheck
+          cp /usr/bin/cppcheck dist/cppcheck-linux-amd64
+          
+          chmod +x dist/*-linux-amd64
       
       - name: Download Rust tools
         run: |
+          # cargo-deny
           CARGO_DENY_VERSION=$(curl -s https://api.github.com/repos/EmbarkStudios/cargo-deny/releases/latest | jq -r .tag_name)
-          curl -sL "https://github.com/EmbarkStudios/cargo-deny/releases/download/$CARGO_DENY_VERSION/cargo-deny-${CARGO_DENY_VERSION#v}-x86_64-unknown-linux-musl.tar.gz" | tar -xz -C /tmp/
-          mv /tmp/cargo-deny-${CARGO_DENY_VERSION#v}-x86_64-unknown-linux-musl/cargo-deny dist/cargo-deny-linux-amd64
+          curl -sL "https://github.com/EmbarkStudios/cargo-deny/releases/download/${CARGO_DENY_VERSION}/cargo-deny-${CARGO_DENY_VERSION#v}-x86_64-unknown-linux-musl.tar.gz" -o /tmp/cargo-deny.tar.gz
+          tar -xzf /tmp/cargo-deny.tar.gz -C /tmp && mv /tmp/cargo-deny-${CARGO_DENY_VERSION#v}-x86_64-unknown-linux-musl/cargo-deny dist/cargo-deny-linux-amd64
           
-          CARGO_AUDIT_VERSION=$(curl -s https://api.github.com/repos/rustsec/rustsec/releases/latest | jq -r .tag_name | sed 's|cargo-audit/||')
-          curl -sL "https://github.com/rustsec/rustsec/releases/download/cargo-audit/$CARGO_AUDIT_VERSION/cargo-audit-x86_64-unknown-linux-gnu-${CARGO_AUDIT_VERSION}.tgz" | tar -xz -C /tmp/
-          mv /tmp/cargo-audit-x86_64-unknown-linux-gnu-${CARGO_AUDIT_VERSION}/cargo-audit dist/cargo-audit-linux-amd64
-      
-      - name: Install cppcheck from apt
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq cppcheck
-          cp $(which cppcheck) dist/cppcheck-linux-amd64
+          # cargo-audit
+          CARGO_AUDIT_VERSION=$(curl -s https://api.github.com/repos/rustsec/rustsec/releases/latest | jq -r .tag_name)
+          curl -sL "https://github.com/rustsec/rustsec/releases/download/${CARGO_AUDIT_VERSION}/cargo-audit-x86_64-unknown-linux-gnu-${CARGO_AUDIT_VERSION#cargo-audit/}.tgz" -o /tmp/cargo-audit.tgz
+          tar -xzf /tmp/cargo-audit.tgz -C /tmp && mv /tmp/cargo-audit/cargo-audit dist/cargo-audit-linux-amd64
+          
+          chmod +x dist/cargo-*.linux-amd64
       
       - name: Compress with UPX
         run: |
-          sudo apt-get install -y -qq upx
+          sudo apt-get install -y upx
           upx --best --lzma dist/*-linux-amd64 || true
       
       - name: Upload to GitHub Release
