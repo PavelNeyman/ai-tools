@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/PavelNeyman/qwen-tools/internal/github"
-	"github.com/PavelNeyman/qwen-tools/internal/tools"
+	"github.com/PavelNeyman/ai-tools/internal/github"
+	"github.com/PavelNeyman/ai-tools/internal/tools"
 )
 
 func usage() {
@@ -27,7 +27,7 @@ Usage:
 
 Environment:
   GH_TOKEN, QWEN_GH_TOKEN, GITHUB_TOKEN   GitHub token
-  GH_REPO                                 owner/repo (default: PavelNeyman/qwen-tools)`)
+  GH_REPO                                 owner/repo (default: PavelNeyman/ai-tools)`)
 	os.Exit(1)
 }
 
