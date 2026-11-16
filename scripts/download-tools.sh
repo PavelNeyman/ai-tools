@@ -1,11 +1,11 @@
 #!/bin/bash
 set -e
 
-REPO="PavelNeyman/qwen-tools"
+REPO="PavelNeyman/ai-tools"
 BRANCH="main"
 BASE_RAW="https://raw.githubusercontent.com/$REPO/$BRANCH"
 
-echo "=== Загрузка qwen tools ==="
+echo "=== Загрузка aitools tools ==="
 start_time=$(date +%s)
 
 echo "[1/4] Чтение списка инструментов..."
@@ -61,7 +61,7 @@ download_tool() {
 }
 
 TOOLS=(
-    "qwen:/tmp/qwen"
+    "qwen:/tmp/aitools"
     "staticcheck:/tmp/staticcheck"
     "gosec:/tmp/gosec"
     "errcheck:/tmp/errcheck"
