@@ -157,8 +157,8 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Print("aitools " + version + " - единый инструмент для обхода ограничений песочницы
-
+	fmt.Printf("aitools %s - единый инструмент для обхода ограничений песочницы\n", version)
+	fmt.Print(`
 Usage:
   aitools <command> [arguments]
 
@@ -179,7 +179,7 @@ Commands:
   encrypt <file> <key>       Зашифровать (AES-256-GCM)
   decrypt <file> <key>       Расшифровать
   help                       Справка
-")
+`)
 }
 
 func execCmd(command string, args []string) {
