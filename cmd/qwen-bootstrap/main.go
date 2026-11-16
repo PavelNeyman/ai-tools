@@ -12,8 +12,8 @@ import (
 	)
 
 const (
-	toolsRepo = "PavelNeyman/qwen-tools"
-	cacheDir  = "/tmp/qwen-tools-cache"
+	toolsRepo = "PavelNeyman/ai-tools"
+	cacheDir  = "/tmp/ai-tools-cache"
 )
 
 type Tool struct {
@@ -39,13 +39,13 @@ func main() {
 		listTools()
 	case "install":
 		if len(os.Args) < 3 {
-			fmt.Println("Usage: qwen-bootstrap install <tool>")
+			fmt.Println("Usage: aitools-bootstrap install <tool>")
 			os.Exit(1)
 		}
 		installTool(os.Args[2])
 	case "run":
 		if len(os.Args) < 3 {
-			fmt.Println("Usage: qwen-bootstrap run <tool> [args...]")
+			fmt.Println("Usage: aitools-bootstrap run <tool> [args...]")
 			os.Exit(1)
 		}
 		runTool(os.Args[2], os.Args[3:])
@@ -57,7 +57,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Println("Usage: qwen-bootstrap <list|install|run|update>")
+	fmt.Println("Usage: aitools-bootstrap <list|install|run|update>")
 	os.Exit(1)
 }
 
