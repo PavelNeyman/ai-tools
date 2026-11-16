@@ -19,68 +19,49 @@ import (
 
 var Version = "dev"
 
-type Tool struct {
-	Name string
-	URL  string
+
+var toolRegistry = map[string][]string{
+	"Go": {"staticcheck","gosec","errcheck","govulncheck","golangci-lint","gofumpt","revive",
+		"goimports","bodyclose","unconvert","ineffassign","deadcode","nilaway","gocritic",
+		"osv-scanner","trivy","betterleaks","trufflehog","bearer","ruff","nuclei"},
+	"Rust": {"cargo-audit","cargo-deny","trivy","osv-scanner","semgrep"},
+	"Swift": {"swiftlint","trivy","osv-scanner","semgrep"},
+	"Shell": {"shellcheck","semgrep"},
+	"Docker": {"hadolint","trivy"},
+	"Python": {"ruff","semgrep","trivy","osv-scanner","bandit"},
+	"JavaScript": {"semgrep","trivy","osv-scanner","eslint"},
+	"C": {"cppcheck","semgrep"},
+	"C++": {"cppcheck","semgrep"},
 }
 
-var toolRegistry = map[string][]Tool{
-	"Go": {
-		{"gosec", "https://github.com/securego/gosec/releases/download/v2.22.1/gosec_2.22.1_linux_amd64.tar.gz"},
-		{"staticcheck", "https://github.com/dominikh/go-tools/releases/download/2024.1.1/staticcheck_linux_amd64.tar.gz"},
-		{"errcheck", "https://github.com/kisielk/errcheck/releases/download/v1.8.0/errcheck_linux_amd64.tar.gz"},
-		{"govulncheck", "https://github.com/golangci/govulncheck/releases/download/v1.1.3/govulncheck_linux_amd64.tar.gz"},
-		{"golangci-lint", "https://github.com/golangci/golangci-lint/releases/download/v1.61.0/golangci-lint-1.61.0-linux-amd64.tar.gz"},
-		{"gofumpt", "https://github.com/mvdan/gofumpt/releases/download/v0.7.0/gofumpt_v0.7.0_linux_amd64.tar.gz"},
-		{"revive", "https://github.com/mgechev/revive/releases/download/v1.5.1/revive_linux_amd64.tar.gz"},
-		{"goimports", "https://github.com/golang/tools/releases/download/v0.28.0/goimports_linux_amd64.tar.gz"},
-		{"bodyclose", "https://github.com/timakin/bodyclose/releases/download/v1.0.0/bodyclose_linux_amd64.tar.gz"},
-		{"unconvert", "https://github.com/mdempsky/unconvert/releases/download/v1.0.0/unconvert_linux_amd64.tar.gz"},
-		{"ineffassign", "https://github.com/gordonklaus/ineffassign/releases/download/v1.0.0/ineffassign_linux_amd64.tar.gz"},
-		{"deadcode", "https://github.com/tsenart/deadcode/releases/download/v1.0.0/deadcode_linux_amd64.tar.gz"},
-		{"nilaway", "https://github.com/uber-go/nilaway/releases/download/v0.1.1/nilaway_linux_amd64.tar.gz"},
-		{"gocritic", "https://github.com/go-critic/go-critic/releases/download/v0.11.4/gocritic_linux_amd64.tar.gz"},
-		{"osv-scanner", "https://github.com/google/osv-scanner/releases/download/v1.9.1/osv-scanner_linux_amd64.tar.gz"},
-		{"gitleaks", "https://github.com/gitleaks/gitleaks/releases/download/v8.22.1/gitleaks_8.22.1_linux_x64.tar.gz"},
-		{"trufflehog", "https://github.com/trufflesecurity/trufflehog/releases/download/v3.83.7/trufflehog_linux_amd64.tar.gz"},
-		{"trivy", "https://github.com/aquasecurity/trivy/releases/download/v0.58.0/trivy_0.58.0_Linux-64bit.tar.gz"},
-		{"nancy", "https://github.com/sonatype-nexus-community/nancy/releases/download/v1.0.46/nancy-v1.0.46-linux-amd64.tar.gz"},
-		{"bearer", "https://github.com/Bearer/bearer/releases/download/v1.45.1/bearer_1.45.1_linux_amd64.tar.gz"},
-		{"gremlins", "https://github.com/go-gremlins/gremlins/releases/download/v1.0.0/gremlins_linux_amd64.tar.gz"},
-	},
-	"Rust": {
-		{"cargo-audit", "https://github.com/rustsec/rustsec/releases/download/cargo-audit/v0.21.0/cargo-audit-x86_64-unknown-linux-gnu-v0.21.0.tgz"},
-		{"cargo-deny", "https://github.com/EmbarkStudios/cargo-deny/releases/download/0.16.2/cargo-deny-0.16.2-x86_64-unknown-linux-musl.tar.gz"},
-		{"trivy", "https://github.com/aquasecurity/trivy/releases/download/v0.58.0/trivy_0.58.0_Linux-64bit.tar.gz"},
-		{"osv-scanner", "https://github.com/google/osv-scanner/releases/download/v1.9.1/osv-scanner_linux_amd64.tar.gz"},
-	},
-	"Swift": {
-		{"swiftlint", "https://github.com/realm/SwiftLint/releases/download/0.58.0/swiftlint_linux.zip"},
-		{"trivy", "https://github.com/aquasecurity/trivy/releases/download/v0.58.0/trivy_0.58.0_Linux-64bit.tar.gz"},
-		{"osv-scanner", "https://github.com/google/osv-scanner/releases/download/v1.9.1/osv-scanner_linux_amd64.tar.gz"},
-	},
-	"Shell": {
-		{"shellcheck", "https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.linux.x86_64.tar.xz"},
-	},
-	"Docker": {
-		{"hadolint", "https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64.tar.gz"},
-		{"trivy", "https://github.com/aquasecurity/trivy/releases/download/v0.58.0/trivy_0.58.0_Linux-64bit.tar.gz"},
-	},
-	"Python": {
-		{"trivy", "https://github.com/aquasecurity/trivy/releases/download/v0.58.0/trivy_0.58.0_Linux-64bit.tar.gz"},
-		{"osv-scanner", "https://github.com/google/osv-scanner/releases/download/v1.9.1/osv-scanner_linux_amd64.tar.gz"},
-	},
-	"JavaScript": {
-		{"trivy", "https://github.com/aquasecurity/trivy/releases/download/v0.58.0/trivy_0.58.0_Linux-64bit.tar.gz"},
-		{"osv-scanner", "https://github.com/google/osv-scanner/releases/download/v1.9.1/osv-scanner_linux_amd64.tar.gz"},
-	},
-	"C": {
-		{"cppcheck", "https://github.com/danmar/cppcheck/releases/download/2.16.2/cppcheck-2.16.2.tar.gz"},
-	},
-	"C++": {
-		{"cppcheck", "https://github.com/danmar/cppcheck/releases/download/2.16.2/cppcheck-2.16.2.tar.gz"},
-	},
+// getAssetURL fetches download URL for a tool from the latest ai-tools release
+func getAssetURL(toolName string) (string, error) {
+	c := &http.Client{Timeout: 20 * time.Second}
+	resp, err := c.Get("https://api.github.com/repos/PavelNeyman/ai-tools/releases/latest")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	var rel struct {
+		Assets []struct {
+			Name               string `json:"name"`
+			BrowserDownloadURL string `json:"browser_download_url"`
+		} `json:"assets"`
+	}
+	if err := json.Unmarshal(body, &rel); err != nil {
+		return "", err
+	}
+	want := toolName + "-linux-amd64"
+	for _, a := range rel.Assets {
+		if a.Name == want {
+			return a.BrowserDownloadURL, nil
+		}
+	}
+	return "", fmt.Errorf("asset not found: %s", want)
 }
+
+
 
 type Language struct {
 	Name    string
@@ -233,7 +214,7 @@ func toolsList() {
 		tools := toolRegistry[lang]
 		fmt.Printf("%s (%d tools):\n", lang, len(tools))
 		for _, tool := range tools {
-			fmt.Printf("  - %s\n", tool.Name)
+			fmt.Printf("  - %s\n", tool)
 		}
 		fmt.Println()
 	}
@@ -245,72 +226,59 @@ func toolsFetch() {
 		fmt.Println("No languages detected in current directory")
 		return
 	}
-	
+
 	fmt.Printf("Detected languages: %s\n\n", strings.Join(langs, ", "))
-	
+
 	toolsDir := filepath.Join(os.Getenv("HOME"), ".aitools", "bin")
 	os.MkdirAll(toolsDir, 0755)
-	
-	client := &http.Client{Timeout: 30 * time.Second}
-	
+
+	client := &http.Client{Timeout: 120 * time.Second}
+
+	needed := map[string]bool{}
 	for _, lang := range langs {
-		tools := toolRegistry[lang]
-		fmt.Printf("Fetching %s tools...\n", lang)
-		
-		for _, tool := range tools {
-			destPath := filepath.Join(toolsDir, tool.Name)
-			
-			if _, err := os.Stat(destPath); err == nil {
-				fmt.Printf("  ✓ %s already installed\n", tool.Name)
-				continue
-			}
-			
-			fmt.Printf("  ↓ %s\n", tool.Name)
-			
-			resp, err := client.Get(tool.URL)
-			if err != nil {
-				fmt.Printf("    ✗ failed: %v\n", err)
-				continue
-			}
-			defer resp.Body.Close()
-			
-			if resp.StatusCode != 200 {
-				fmt.Printf("    ✗ HTTP %d\n", resp.StatusCode)
-				continue
-			}
-			
-			tmpFile, err := os.CreateTemp("", "tool-*.tmp")
-			if err != nil {
-				fmt.Printf("    ✗ temp file: %v\n", err)
-				continue
-			}
-			tmpPath := tmpFile.Name()
-			defer os.Remove(tmpPath)
-			
-			_, err = io.Copy(tmpFile, resp.Body)
-			tmpFile.Close()
-			if err != nil {
-				fmt.Printf("    ✗ download: %v\n", err)
-				continue
-			}
-			
-			if err := extractArchive(tmpPath, destPath, tool.Name); err != nil {
-				fmt.Printf("    ✗ extract: %v\n", err)
-				continue
-			}
-			
-			if err := os.Chmod(destPath, 0755); err != nil {
-				fmt.Printf("    ✗ chmod: %v\n", err)
-				continue
-			}
-			
-			fmt.Printf("    ✓ installed\n")
+		for _, t := range toolRegistry[lang] {
+			needed[t] = true
 		}
 	}
-	
+
+	for tool := range needed {
+		destPath := filepath.Join(toolsDir, tool)
+		if _, err := os.Stat(destPath); err == nil {
+			fmt.Printf("  ✓ %-15s already installed\n", tool)
+			continue
+		}
+
+		url, err := getAssetURL(tool)
+		if err != nil {
+			fmt.Printf("  ✗ %-15s %v\n", tool, err)
+			continue
+		}
+		fmt.Printf("  ↓ %-15s ...\n", tool)
+
+		resp, err := client.Get(url)
+		if err != nil {
+			fmt.Printf("    ✗ download: %v\n", err)
+			continue
+		}
+		tmpFile, _ := os.CreateTemp("", "tool-*.tmp")
+		io.Copy(tmpFile, resp.Body)
+		tmpFile.Close()
+		resp.Body.Close()
+		tmpPath := tmpFile.Name()
+		defer os.Remove(tmpPath)
+
+		if err := extractArchive(tmpPath, destPath, tool); err != nil {
+			fmt.Printf("    ✗ extract: %v\n", err)
+			continue
+		}
+		os.Chmod(destPath, 0755)
+		fmt.Printf("    ✓ installed\n")
+	}
+
 	fmt.Printf("\nTools installed to: %s\n", toolsDir)
 	fmt.Println("Add to PATH: export PATH=\"$HOME/.aitools/bin:$PATH\"")
 }
+
 
 func extractArchive(archivePath, destPath, toolName string) error {
 	if strings.HasSuffix(archivePath, ".tar.gz") || strings.HasSuffix(archivePath, ".tgz") {
@@ -495,31 +463,31 @@ func reviewCmd() {
 		fmt.Printf("=== %s Analysis ===\n", lang)
 		
 		for _, tool := range tools {
-			toolPath := filepath.Join(toolsDir, tool.Name)
+			toolPath := filepath.Join(toolsDir, tool)
 			
 			if _, err := os.Stat(toolPath); os.IsNotExist(err) {
-				fmt.Printf("  ⚠ %s not installed\n", tool.Name)
+				fmt.Printf("  ⚠ %s not installed\n", tool)
 				continue
 			}
 			
-			fmt.Printf("  → Running %s...\n", tool.Name)
+			fmt.Printf("  → Running %s...\n", tool)
 			
 			var args []string
-			switch tool.Name {
+			switch tool {
 			case "gosec":
 				args = []string{"-fmt=json", "-quiet", "./..."}
 			case "staticcheck":
 				args = []string{"-f=json", "./..."}
 			case "golangci-lint":
-				args = []string{"run", "--out-format=json"}
+				args = []string{"run", "--output.json.path=stdout"}
 			case "trivy":
 				args = []string{"fs", "--format=json", "--quiet", "."}
 			case "osv-scanner":
-				args = []string{"--format=json", "."}
+				args = []string{"scan", "source", "--format=json", "-r", "."}
 			case "swiftlint":
 				args = []string{"lint", "--reporter=json"}
 			case "shellcheck":
-				args = []string{"-f=json", "."}
+				args = []string{"-f=json", "-x"}
 			case "hadolint":
 				args = []string{"-f=json", "Dockerfile"}
 			case "cargo-audit":
@@ -528,6 +496,18 @@ func reviewCmd() {
 				args = []string{"check", "--format=json"}
 			case "cppcheck":
 				args = []string{"--enable=all", "--output-file=/dev/stdout", "."}
+			case "semgrep":
+				args = []string{"scan", "--json", "--config=p/security-audit", "--metrics=off", "."}
+			case "ruff":
+				args = []string{"check", "--output-format=json", "."}
+			case "betterleaks":
+				args = []string{"git", ".", "--report-format=json", "--report-path=/dev/stdout", "--no-banner"}
+			case "nuclei":
+				args = []string{"-jsonl", "-silent", "-u", "."}
+			case "bandit":
+				args = []string{"-r", ".", "-f", "json", "-q"}
+			case "eslint":
+				args = []string{".", "--format=json"}
 			default:
 				args = []string{"."}
 			}
@@ -542,10 +522,10 @@ func reviewCmd() {
 			
 			var result map[string]interface{}
 			if err := json.Unmarshal(output, &result); err == nil {
-				langReport[tool.Name] = result
+				langReport[tool] = result
 				fmt.Printf("    ✓ completed\n")
 			} else {
-				langReport[tool.Name] = map[string]interface{}{
+				langReport[tool] = map[string]interface{}{
 					"raw":    string(output),
 					"error":  err != nil,
 				}
