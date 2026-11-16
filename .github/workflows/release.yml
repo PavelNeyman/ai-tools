@@ -24,13 +24,13 @@ jobs:
           TAG=${GITHUB_REF#refs/tags/}
           echo "version=${TAG}" >> $GITHUB_OUTPUT
 
-      - name: Build qwen (linux/amd64 only)
+      - name: Build aitools (linux/amd64 only)
         run: |
           mkdir -p dist
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
             -ldflags="-s -w" \
-            -o dist/qwen-linux-amd64 \
-            ./cmd/qwen
+            -o dist/aitools-linux-amd64 \
+            ./cmd/aitools
 
       - name: Download tools (linux/amd64 only)
         run: |
