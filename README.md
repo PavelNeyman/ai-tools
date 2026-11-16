@@ -1,13 +1,13 @@
-# Qwen Tools
+# AI Tools
 
 Набор инструментов для анализа Go кода с интеграцией в Qwen.
 
 ## Установка
 
-Скачайте скрипт установки из scripts/qwen-tools.sh и запустите его.
+Скачайте скрипт установки из scripts/ai-tools.sh и запустите его.
 
 Скрипт скачает и установит:
-- qwen - основной инструмент (2.3 МБ)
+- aitools - основной инструмент (2.3 МБ)
 - staticcheck - статический анализатор (13 МБ)
 - gosec - анализатор безопасности (28 МБ)
 - Go 1.22.5 (для компиляции)
@@ -18,23 +18,23 @@
 
 ### Основные команды
 
-- qwen help - показать справку
-- qwen tools install - установить все инструменты анализа
-- qwen tools status - показать статус установленных инструментов
-- qwen tools list - список доступных инструментов
+- aitools help - показать справку
+- aitools tools install - установить все инструменты анализа
+- aitools tools status - показать статус установленных инструментов
+- aitools tools list - список доступных инструментов
 
 ### Базовые операции (обход sandbox ограничений)
 
-- qwen exec - выполнить команду (обход subprocess hooks)
-- qwen read - прочитать файл (обход open() hooks)
-- qwen write - записать файл
-- qwen find - найти файлы по паттерну
-- qwen tree - показать дерево директорий
-- qwen http - HTTP запросы
+- aitools exec - выполнить команду (обход subprocess hooks)
+- aitools read - прочитать файл (обход open() hooks)
+- aitools write - записать файл
+- aitools find - найти файлы по паттерну
+- aitools tree - показать дерево директорий
+- aitools http - HTTP запросы
 
 ### Анализ кода
 
-- qwen review user/repo - запустить полный анализ проекта
+- aitools review user/repo - запустить полный анализ проекта
 
 Или вручную с установленными инструментами:
 - staticcheck -f json ./...
@@ -60,7 +60,7 @@
 
 **Персистентное хранилище**:
 - Бинарники хранятся на GitHub Releases
-- Скрипт qwen-tools.sh скачивает их за ~11 секунд
+- Скрипт ai-tools.sh скачивает их за ~11 секунд
 - Инструменты готовы к использованию в каждом новом чате
 
 ## Команды
@@ -82,9 +82,9 @@
 
 ### Локальная сборка
 
-git clone https://github.com/PavelNeyman/qwen-tools.git
-cd qwen-tools
-go build -o qwen-linux-amd64 ./cmd/qwen
+git clone https://github.com/PavelNeyman/ai-tools.git
+cd ai-tools
+go build -o aitools-linux-amd64 ./cmd/qwen
 
 ## Лицензия
 
