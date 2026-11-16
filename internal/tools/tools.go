@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/PavelNeyman/qwen-tools/internal/github"
+	"github.com/PavelNeyman/ai-tools/internal/github"
 )
 
 // --- Patch / Append ---
