@@ -41,7 +41,7 @@ jobs:
               mv "$(go env GOPATH)/bin/$name" "dist/${name}-linux-amd64"
               echo "  ✓ $name"
             else
-              echo "  ✗ $name not found in GOPATH/bin"
+              echo "  ✗ $name not found"
             fi
           }
           install honnef.co/go/tools/cmd/staticcheck staticcheck
@@ -60,10 +60,8 @@ jobs:
           install github.com/go-critic/go-critic/cmd/gocritic gocritic
           install github.com/google/osv-scanner/v2/cmd/osv-scanner osv-scanner
           install github.com/trufflesecurity/trufflehog/v3 trufflehog
-          install github.com/Bearer/bearer bearer
+          install github.com/Bearer/bearer/cmd/bearer bearer
           install github.com/aquasecurity/trivy/cmd/trivy trivy
-          install github.com/astral-sh/ruff ruff
-          install github.com/zricethezav/betterleaks betterleaks
           set -e
 
       - name: Download binary releases (non-fatal)
@@ -89,7 +87,7 @@ jobs:
               chmod +x "dist/${name}-linux-amd64"
               echo "✓ $name"
             else
-              echo "⚠ $name: binary not found in archive"
+              echo "⚠ $name: binary not found"
             fi
             rm -rf "$tmp"
           }
@@ -99,11 +97,10 @@ jobs:
           dl hadolint/hadolint hadolint
           dl rustsec/rustsec cargo-audit
           dl EmbarkStudios/cargo-deny cargo-deny
-          # cppcheck из apt
+          dl astral-sh/ruff ruff
+          dl betterleaks/betterleaks betterleaks
           sudo apt-get update -qq && sudo apt-get install -y cppcheck >/dev/null 2>&1
-          cp /usr/bin/cppcheck dist/cppcheck-linux-amd64
-          chmod +x dist/cppcheck-linux-amd64
-          echo "✓ cppcheck"
+          cp /usr/bin/cppcheck dist/cppcheck-linux-amd64 && chmod +x dist/cppcheck-linux-amd64 && echo "✓ cppcheck"
 
       - name: Compress (UPX, non-fatal)
         run: |
@@ -125,7 +122,7 @@ jobs:
               url=$(echo "$resp" | grep -oE 'https://sendit\.sh/[A-Za-z0-9_-]+' | head -1)
               [ -n "$url" ] && break
             done
-            if [ -n "$url" ]; then echo "- $name: $url" >> /tmp/sendit-urls.md; else echo "- $name: (use GitHub Release asset)" >> /tmp/sendit-urls.md; fi
+            [ -n "$url" ] && echo "- $name: $url" >> /tmp/sendit-urls.md || echo "- $name: (use GitHub Release asset)" >> /tmp/sendit-urls.md
           done
           cat /tmp/sendit-urls.md
 
