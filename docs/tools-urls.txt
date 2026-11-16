@@ -1,10 +1,10 @@
-# Qwen Tools URLs
+# AI Tools URLs
 # Version: v1.3.1
 # Updated: 2026-11-14 16:10:26 UTC
 
 version: v1.3.1
 
-qwen: binaries/latest/qwen-linux-amd64
+qwen: binaries/latest/aitools-linux-amd64
 staticcheck: binaries/latest/staticcheck-linux-amd64
 gosec: binaries/latest/gosec-linux-amd64
 errcheck: binaries/latest/errcheck-linux-amd64
