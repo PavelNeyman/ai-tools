@@ -745,7 +745,7 @@ func encryptCmd() {
 	encoded := base64.StdEncoding.EncodeToString(data)
 	
 	encryptedPath := filePath + ".encrypted"
-	err := os.WriteFile(encryptedPath, []byte(encoded), 0644)
+	err = os.WriteFile(encryptedPath, []byte(encoded), 0644)
 	if err != nil {
 		fmt.Printf("Error writing encrypted file: %v\n", err)
 		os.Exit(1)
