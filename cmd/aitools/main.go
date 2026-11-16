@@ -536,6 +536,9 @@ func reviewCmd() {
 			cmd.Dir = absPath
 			
 			output, err := cmd.CombinedOutput()
+			if err != nil {
+				fmt.Printf("    ⚠ command failed: %v\n", err)
+			}
 			
 			var result map[string]interface{}
 			if err := json.Unmarshal(output, &result); err == nil {
