@@ -14,7 +14,7 @@ import (
 // Configuration
 var (
 	Token = envOr("GH_TOKEN", envOr("QWEN_GH_TOKEN", envOr("GITHUB_TOKEN", "")))
-	Repo  = envOr("GH_REPO", "PavelNeyman/qwen-tools")
+	Repo  = envOr("GH_REPO", "PavelNeyman/ai-tools")
 	APIBase = "https://api.github.com/repos/" + Repo
 )
 
