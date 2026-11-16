@@ -46,13 +46,13 @@ var patterns = []Pattern{
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: qwen-analyzer <scan|patterns>")
+		fmt.Println("Usage: aitools-analyzer <scan|patterns>")
 		os.Exit(1)
 	}
 	switch os.Args[1] {
 	case "scan":
 		if len(os.Args) < 3 {
-			fmt.Println("Usage: qwen-analyzer scan <dir>")
+			fmt.Println("Usage: aitools-analyzer scan <dir>")
 			os.Exit(1)
 		}
 		scanDir(os.Args[2])
