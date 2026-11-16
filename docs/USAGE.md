@@ -1,60 +1,74 @@
 # AI Tools: Usage Guide
 
+Universal code review and security analysis toolkit for **Go, Rust, Swift, Shell, Python, JavaScript, C, C++, Docker**.
+
 ## Quick start
 
-```bash
-curl -L -o /tmp/aitools https://github.com/PavelNeyman/ai-tools/releases/latest/download/aitools-linux-amd64
-chmod +x /tmp/aitools
-/tmp/aitools tools fetch      # download all analysis tools from latest release
-/tmp/aitools tools status
-```
+    curl -L -o /tmp/aitools https://github.com/PavelNeyman/ai-tools/releases/latest/download/aitools-linux-amd64
+    chmod +x /tmp/aitools
+    cd <your-project>
+    /tmp/aitools tools fetch      # auto-detects languages, downloads tools from ai-tools release
+    /tmp/aitools review           # runs all applicable analyzers, writes report.json + summary.txt
 
-In restricted sandboxes where curl is blocked, download via Python `urllib.request` (GET the release asset URL).
+In restricted sandboxes, download via Python `urllib.request`.
 
 ## Commands
 
 - `aitools tools list|status|fetch` — manage tools
-- `aitools review <repo-url|path> [--mutation]` — **full analysis + aggregated report** (report.md / report.json in /tmp/review-out)
+- `aitools review [path]` — full analysis + aggregated report (`aitools-report.json` and `aitools-summary.txt`)
 - `aitools version` — build version
 - `aitools exec <cmd> [args]` — run command (sandbox bypass)
 - `aitools read|write|find|tree|http` — file/HTTP helpers
 - `aitools encrypt|decrypt <file> <key>` — AES-256-GCM
-- `aitools tools sync <file> [key]` — encrypt + upload to sendit.sh
 
-## Analysis tools (linux/amd64, attached to each release)
+## Tools by language
 
-| Tool | Purpose |
-|------|---------|
-| staticcheck | Bugs, performance (SA/S/ST/QF) |
-| gosec | Security rules |
-| errcheck | Unchecked errors |
-| govulncheck | CVE in deps, **reachability** (Go vuln DB) |
-| golangci-lint v2 | 100+ linters (see .golangci.yml preset) |
-| goimports / gofumpt | Imports / strict formatting |
-| revive / gocritic | Linters |
-| deadcode / ineffassign / unconvert / bodyclose | Dead code / ineffective assigns / conversions / HTTP body |
-| **nilaway** (uber-go) | Inter-procedural nil-panic detection |
-| **trivy** | CVE + IaC misconfig + secrets + licenses + SBOM |
-| **osv-scanner** | OSV database vulns + guided remediation |
-| **betterleaks** | Secrets: detection + validation + analysis + revocation (gitleaks successor) |
-| **trufflehog** | Secrets: verifies if leaked creds are live |
-| **bearer** | SAST data-flow (security + privacy / PII) |
-| **gremlins** | Mutation testing (small modules; --mutation flag) |
+**Go (21):** staticcheck, gosec, errcheck, govulncheck (reachability), golangci-lint v2 (100+ linters), gofumpt, revive, goimports, bodyclose, unconvert, ineffassign, deadcode, nilaway, gocritic, osv-scanner v2 (remediation), trivy, betterleaks (secrets: detect + validate + revoke), trufflehog, bearer (data-flow security+PII), ruff, nuclei (runtime scanner)
 
-## Full review example
+**Rust (5):** cargo-audit, cargo-deny, trivy, osv-scanner, semgrep
 
-```bash
-/tmp/aitools review https://github.com/PavelNeyman/netductor
-# reports: /tmp/review-out/report.md and report.json
-# per-tool raw output: /tmp/review-out/<tool>.out
-```
+**Swift (4):** swiftlint, trivy, osv-scanner, semgrep
 
-Requires Go (PATH or /tmp/go). `review` runs go mod download, writes a golangci-lint v2 preset, runs all installed tools (best-effort) and aggregates counts.
+**Shell (2):** shellcheck, semgrep
+
+**Python (5):** ruff, semgrep, trivy, osv-scanner, bandit
+
+**JavaScript (4):** semgrep, trivy, osv-scanner, eslint
+
+**C / C++ (2):** cppcheck, semgrep
+
+**Docker (2):** hadolint, trivy
+
+## Best-effort (not auto-installed)
+
+Some tools require language-specific runtimes and are not bundled in the release:
+
+- **semgrep** — `pip install semgrep` (Python runtime)
+- **bandit** — `pip install bandit` (Python runtime)
+- **eslint** — `npm install -g eslint` (Node runtime)
+
+If these are absent on the system, `review` will skip them gracefully. `tools fetch` attempts to fetch them from the release; if not found there, they are skipped.
+
+## Language detection
+
+Automatic detection by markers:
+
+| Language | Markers |
+|---|---|
+| Go | `go.mod`, `*.go` |
+| Rust | `Cargo.toml`, `*.rs` |
+| Swift | `Package.swift`, `*.swift` |
+| Shell | `*.sh`, `*.bash` |
+| Docker | `Dockerfile`, `docker-compose.yml` |
+| Python | `requirements.txt`, `pyproject.toml`, `*.py` |
+| JavaScript | `package.json`, `*.js`, `*.ts` |
+| C | `*.c`, `*.h`, `Makefile` |
+| C++ | `*.cpp`, `*.hpp`, `CMakeLists.txt` |
 
 ## Security
 
-Encrypt sensitive reports before transmitting: `aitools encrypt /tmp/review-out/report.json <key>`. Store keys in secrets/env, not CLI history.
+Encrypt sensitive reports before transmitting: `aitools encrypt aitools-report.json <key>`. Store keys in secrets/env, not CLI history.
 
 ## Build
 
-Push tag `v*` → GitHub Actions builds aitools + all tools (always latest versions) for linux/amd64 and attaches them to the release.
+Push tag `v*` -> GitHub Actions builds aitools + all tools (always latest versions via `go install @latest` + `releases/latest` binary downloads) for linux/amd64.
