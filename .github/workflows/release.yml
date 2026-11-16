@@ -2,111 +2,112 @@ name: Release
 
 on:
   push:
-    tags: ['v*']
-  workflow_dispatch: {}
-
-permissions:
-  contents: write
+    tags:
+      - 'v*'
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
+      
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          go-version: 'stable'
-
-      - name: Get version
-        id: version
-        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
+          go-version: '1.22'
+      
       - name: Build aitools
         run: |
-          mkdir -p dist
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-            -ldflags="-s -w -X main.version=${{ steps.version.outputs.version }}" \
-            -o dist/aitools-linux-amd64 ./cmd/aitools
-
-      - name: Install Go tools (always @latest)
+          VERSION=$(git describe --tags --always --dirty)
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.Version=$VERSION" -o dist/aitools-linux-amd64 ./cmd/aitools
+      
+      - name: Download Go tools (always @latest)
         run: |
-          mkdir -p dist
-          install() { go install "$1" || echo "⚠ failed: $1"; }
-          install honnef.co/go/tools/cmd/staticcheck@latest
-          install github.com/securego/gosec/v2/cmd/gosec@latest
-          install github.com/kisielk/errcheck@latest
-          install golang.org/x/vuln/cmd/govulncheck@latest
-          install golang.org/x/tools/cmd/goimports@latest
-          install github.com/mgechev/revive@latest
-          install golang.org/x/tools/cmd/deadcode@latest
-          install github.com/gordonklaus/ineffassign@latest
-          install github.com/mdempsky/unconvert@latest
-          install github.com/timakin/bodyclose@latest
-          install go.uber.org/nilaway/cmd/nilaway@latest
-          install github.com/go-critic/go-critic/cmd/gocritic@latest
-          install mvdan.cc/gofumpt@latest
-          BIN=$(go env GOPATH)/bin
-          for name in staticcheck gosec errcheck govulncheck goimports revive deadcode ineffassign unconvert bodyclose nilaway gocritic gofumpt; do
-            if [ -f "$BIN/$name" ]; then mv "$BIN/$name" "dist/${name}-linux-amd64"; fi
-          done
-
-      - name: Download binary releases (always latest, non-fatal)
+          GOBIN=$(pwd)/dist go install github.com/securego/gosec/v2/cmd/gosec@latest
+          GOBIN=$(pwd)/dist go install honnef.co/go/tools/cmd/staticcheck@latest
+          GOBIN=$(pwd)/dist go install github.com/kisielk/errcheck@latest
+          GOBIN=$(pwd)/dist go install golang.org/x/vuln/cmd/govulncheck@latest
+          GOBIN=$(pwd)/dist go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+          GOBIN=$(pwd)/dist go install mvdan.cc/gofumpt@latest
+          GOBIN=$(pwd)/dist go install github.com/mgechev/revive@latest
+          GOBIN=$(pwd)/dist go install golang.org/x/tools/cmd/goimports@latest
+          GOBIN=$(pwd)/dist go install github.com/timakin/bodyclose@latest
+          GOBIN=$(pwd)/dist go install github.com/mdempsky/unconvert@latest
+          GOBIN=$(pwd)/dist go install github.com/gordonklaus/ineffassign@latest
+          GOBIN=$(pwd)/dist go install golang.org/x/tools/cmd/deadcode@latest
+          GOBIN=$(pwd)/dist go install go.uber.org/nilaway/cmd/nilaway@latest
+          GOBIN=$(pwd)/dist go install github.com/go-critic/go-critic/cmd/gocritic@latest
+          GOBIN=$(pwd)/dist go install github.com/google/osv-scanner/cmd/osv-scanner@latest
+      
+      - name: Download Nuclei (runtime scanner)
         run: |
-          dl_tool() {
-            local repo="$1" name="$2" json url tmp bin
-            json=$(curl -s "https://api.github.com/repos/${repo}/releases/latest")
-            url=$(echo "$json" | jq -r '.assets[] | select(.name | test("linux";"i")) | select(.name | test("amd64|x86_64|64bit|64-bit";"i")) | select(.name | test("deb|rpm|apk|sbom|json|txt|sig|pem|cosign|provenance|checksums";"i") | not) | .browser_download_url' | head -1)
-            if [ -z "$url" ] || [ "$url" = "null" ]; then echo "⚠ $name: no linux/amd64 asset"; return 0; fi
-            tmp=$(mktemp -d)
-            echo "↓ $name: $url"
-            curl -sL "$url" -o "$tmp/archive" || { echo "⚠ $name: download failed"; rm -rf "$tmp"; return 0; }
-            case "$url" in
-              *.tar.gz|*.tgz) tar -xzf "$tmp/archive" -C "$tmp" ;;
-              *.zip) unzip -q "$tmp/archive" -d "$tmp" ;;
-              *) cp "$tmp/archive" "$tmp/$name"; chmod +x "$tmp/$name" ;;
-            esac
-            bin=$(find "$tmp" -type f -name "$name" | head -1)
-            if [ -z "$bin" ]; then bin=$(find "$tmp" -type f -perm -u+x ! -name "*.sh" ! -name "*.md" | head -1); fi
-            if [ -n "$bin" ]; then cp "$bin" "dist/${name}-linux-amd64"; chmod +x "dist/${name}-linux-amd64"; echo "✓ $name"; else echo "⚠ $name: binary not found"; fi
-            rm -rf "$tmp"
-          }
-          dl_tool golangci/golangci-lint golangci-lint
-          dl_tool aquasecurity/trivy trivy
-          dl_tool google/osv-scanner osv-scanner
-          dl_tool betterleaks/betterleaks betterleaks
-          dl_tool trufflesecurity/trufflehog trufflehog
-          dl_tool bearer/bearer bearer
-          dl_tool go-gremlins/gremlins gremlins
-
-      - name: Compress (UPX, non-fatal)
+          NUCLEI_VERSION=$(curl -s https://api.github.com/repos/projectdiscovery/nuclei/releases/latest | jq -r .tag_name)
+          curl -sL "https://github.com/projectdiscovery/nuclei/releases/download/$NUCLEI_VERSION/nuclei_${NUCLEI_VERSION#v}_linux_amd64.zip" -o /tmp/nuclei.zip
+          unzip -q /tmp/nuclei.zip -d dist/
+          mv dist/nuclei dist/nuclei-linux-amd64
+      
+      - name: Download SwiftLint
         run: |
-          sudo apt-get update && sudo apt-get install -y upx
-          for bin in dist/*; do
-            if file "$bin" | grep -q "ELF"; then upx --best --lzma "$bin" || true; fi
-          done
-
-      - name: Upload to sendit.sh (non-fatal)
-        continue-on-error: true
+          SWIFTLINT_VERSION=$(curl -s https://api.github.com/repos/realm/SwiftLint/releases/latest | jq -r .tag_name)
+          curl -sL "https://github.com/realm/SwiftLint/releases/download/$SWIFTLINT_VERSION/swiftlint_linux_amd64.zip" -o /tmp/swiftlint.zip
+          unzip -q /tmp/swiftlint.zip -d dist/
+          mv dist/swiftlint dist/swiftlint-linux-amd64
+      
+      - name: Download ShellCheck
         run: |
-          echo "## sendit.sh URLs" > /tmp/sendit-urls.md
-          for bin in dist/*; do
-            name=$(basename "$bin")
-            url=""
-            for attempt in 1 2 3; do
-              sleep 2
-              resp=$(curl -sT "$bin" https://sendit.sh/ --max-time 30)
-              url=$(echo "$resp" | grep -oE 'https://sendit\.sh/[A-Za-z0-9_-]+' | head -1)
-              [ -n "$url" ] && break
-            done
-            if [ -n "$url" ]; then echo "- $name: $url" >> /tmp/sendit-urls.md; else echo "- $name: (use GitHub Release asset)" >> /tmp/sendit-urls.md; fi
-          done
-          cat /tmp/sendit-urls.md
-
-      - name: Create GitHub Release
+          SHELLCHECK_VERSION=$(curl -s https://api.github.com/repos/koalaman/shellcheck/releases/latest | jq -r .tag_name)
+          curl -sL "https://github.com/koalaman/shellcheck/releases/download/$SHELLCHECK_VERSION/shellcheck-${SHELLCHECK_VERSION}.linux.x86_64.tar.xz" | tar -xJ -C /tmp/
+          mv /tmp/shellcheck-${SHELLCHECK_VERSION}/shellcheck dist/shellcheck-linux-amd64
+      
+      - name: Download Hadolint
+        run: |
+          HADOLINT_VERSION=$(curl -s https://api.github.com/repos/hadolint/hadolint/releases/latest | jq -r .tag_name)
+          curl -sL "https://github.com/hadolint/hadolint/releases/download/$HADOLINT_VERSION/hadolint-linux-x86_64" -o dist/hadolint-linux-amd64
+          chmod +x dist/hadolint-linux-amd64
+      
+      - name: Download Rust tools
+        run: |
+          CARGO_DENY_VERSION=$(curl -s https://api.github.com/repos/EmbarkStudios/cargo-deny/releases/latest | jq -r .tag_name)
+          curl -sL "https://github.com/EmbarkStudios/cargo-deny/releases/download/$CARGO_DENY_VERSION/cargo-deny-${CARGO_DENY_VERSION#v}-x86_64-unknown-linux-musl.tar.gz" | tar -xz -C /tmp/
+          mv /tmp/cargo-deny-${CARGO_DENY_VERSION#v}-x86_64-unknown-linux-musl/cargo-deny dist/cargo-deny-linux-amd64
+          
+          CARGO_AUDIT_VERSION=$(curl -s https://api.github.com/repos/rustsec/rustsec/releases/latest | jq -r .tag_name | sed 's|cargo-audit/||')
+          curl -sL "https://github.com/rustsec/rustsec/releases/download/cargo-audit/$CARGO_AUDIT_VERSION/cargo-audit-x86_64-unknown-linux-gnu-${CARGO_AUDIT_VERSION}.tgz" | tar -xz -C /tmp/
+          mv /tmp/cargo-audit-x86_64-unknown-linux-gnu-${CARGO_AUDIT_VERSION}/cargo-audit dist/cargo-audit-linux-amd64
+      
+      - name: Install cppcheck from apt
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq cppcheck
+          cp $(which cppcheck) dist/cppcheck-linux-amd64
+      
+      - name: Compress with UPX
+        run: |
+          sudo apt-get install -y -qq upx
+          upx --best --lzma dist/*-linux-amd64 || true
+      
+      - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
-          body_path: /tmp/sendit-urls.md
+          draft: false
+          prerelease: false
           generate_release_notes: true
-          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Upload to sendit.sh (non-fatal)
+        continue-on-error: true
+        run: |
+          for file in dist/*; do
+            echo "Uploading $(basename $file) to sendit.sh..."
+            URL=$(curl -s -F "file=@$file" https://sendit.sh/api/upload | jq -r .url)
+            if [ -n "$URL" ]; then
+              echo "  ✓ $(basename $file): $URL"
+            else
+              echo "  ⚠ Failed to upload $(basename $file)"
+            fi
+          done
