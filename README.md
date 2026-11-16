@@ -20,6 +20,9 @@ chmod +x /tmp/aitools
 
 # check
 /tmp/aitools tools status
+
+# full analysis of a repo + aggregated report
+/tmp/aitools review https://github.com/PavelNeyman/netductor
 ```
 
 In restricted sandboxes where curl is blocked, download via Python `urllib.request` — see [docs/USAGE.md](docs/USAGE.md).
