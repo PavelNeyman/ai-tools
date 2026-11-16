@@ -780,7 +780,7 @@ func decryptCmd() {
 		decryptedPath = filePath + ".decrypted"
 	}
 	
-	err := os.WriteFile(decryptedPath, decoded, 0644)
+	err = os.WriteFile(decryptedPath, decoded, 0644)
 	if err != nil {
 		fmt.Printf("Error writing decrypted file: %v\n", err)
 		os.Exit(1)
