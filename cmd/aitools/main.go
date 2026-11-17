@@ -23,13 +23,13 @@ var Version = "dev"
 var toolRegistry = map[string][]string{
 	"Go": {"staticcheck","gosec","errcheck","govulncheck","golangci-lint","gofumpt","revive",
 		"goimports","bodyclose","unconvert","ineffassign","deadcode","nilaway","gocritic",
-		"osv-scanner","trivy","betterleaks","trufflehog","bearer","ruff","nuclei","difft","jscpd"},
-	"Rust": {"cargo-audit","cargo-deny","trivy","osv-scanner","semgrep","difft","jscpd"},
+		"osv-scanner","trivy","betterleaks","trufflehog","bearer","ruff","nuclei","difft"},
+	"Rust": {"cargo-audit","cargo-deny","trivy","osv-scanner","semgrep","difft"},
 	"Swift": {"swiftlint","trivy","osv-scanner","semgrep"},
 	"Shell": {"shellcheck","semgrep"},
 	"Docker": {"hadolint","trivy"},
-	"Python": {"ruff","semgrep","trivy","osv-scanner","bandit","jscpd","difft"},
-	"JavaScript": {"semgrep","trivy","osv-scanner","eslint","jscpd","difft"},
+	"Python": {"ruff","semgrep","trivy","osv-scanner","bandit","difft"},
+	"JavaScript": {"semgrep","trivy","osv-scanner","eslint","difft"},
 	"C": {"cppcheck","semgrep"},
 	"C++": {"cppcheck","semgrep"},
 }
@@ -144,7 +144,14 @@ func main() {
 			sarifCmd("aitools-report.json")
 		}
 		if doAI || diffRef != "" {
-			aiReviewCmd("aitools-report.json", diffRef)
+			repoDir := "."
+		for _, a := range os.Args[2:] {
+			if !strings.HasPrefix(a, "--") && a != "--ai" && a != "--sarif" {
+				repoDir = a
+				break
+			}
+		}
+		aiReviewCmd("aitools-report.json", diffRef, repoDir)
 		}
 	case "sarif":
 		p := ""
