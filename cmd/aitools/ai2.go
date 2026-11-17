@@ -8,7 +8,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 )
 
 // ---- flag helpers ----
@@ -29,9 +31,13 @@ func flagValue(name string) string {
 	return ""
 }
 
-// ---- LLM backend: llm / aichat / OpenAI-compatible HTTP ----
+// ---- LLM backend: llm / aichat / OpenAI-compatible HTTP (with timeout) ----
+var llmClient = &http.Client{Timeout: 60 * time.Second}
+
 func llmComplete(prompt string) (string, error) {
 	if p, err := exec.LookPath("llm"); err == nil {
+		ctx, cancel := exec.CommandContext, cancel
+		_ = ctx
 		out, err := exec.Command(p, prompt).CombinedOutput()
 		return string(out), err
 	}
@@ -58,7 +64,7 @@ func llmComplete(prompt string) (string, error) {
 	req, _ := http.NewRequest("POST", base+"/chat/completions", bytes.NewReader(body))
 	req.Header.Set("Authorization", "Bearer "+key)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := llmClient.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -75,6 +81,7 @@ func llmComplete(prompt string) (string, error) {
 	return "", fmt.Errorf("empty LLM response")
 }
 
+// getDiff - git diff для ревью изменений
 func getDiff(dir, ref string) string {
 	if ref == "" {
 		ref = "HEAD~1"
@@ -86,32 +93,58 @@ func getDiff(dir, ref string) string {
 	return string(out)
 }
 
-// ---- aireview: LLM review of findings + optional diff ----
-func aiReviewCmd(reportPath, diffRef string) {
+// readReport читает aitools-report.json в реальную структуру:
+// {
+//   "path": "...", "languages": [...], "timestamp": "...",
+//   "Go": {"gosec": {...}, "staticcheck": {...}},
+//   "Rust": {...}
+// }
+func readReport(path string) (map[string]interface{}, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var report map[string]interface{}
+	if err := json.Unmarshal(data, &report); err != nil {
+		return nil, err
+	}
+	return report, nil
+}
+
+// aiReviewCmd: LLM-ревью findings + опц. diff
+func aiReviewCmd(reportPath, diffRef, repoDir string) {
 	if reportPath == "" {
 		reportPath = "aitools-report.json"
 	}
-	data, err := os.ReadFile(reportPath)
+	report, err := readReport(reportPath)
 	if err != nil {
-		fmt.Println("No report. Run `aitools review` first.")
+		fmt.Println("Cannot read report:", err)
+		fmt.Println("Run `aitools review` first.")
 		return
 	}
-	var report map[string][]map[string]interface{}
-	json.Unmarshal(data, &report)
 	var findings strings.Builder
-	for lang, results := range report {
-		for _, r := range results {
-			tool, _ := r["tool"].(string)
-			out, _ := r["output"].(string)
-			if strings.TrimSpace(out) == "" {
+	langs, _ := report["languages"].([]interface{})
+	for _, langI := range langs {
+		lang, _ := langI.(string)
+		langReport, _ := report[lang].(map[string]interface{})
+		for tool, result := range langReport {
+			r, ok := result.(map[string]interface{})
+			if !ok {
 				continue
 			}
-			fmt.Fprintf(&findings, "[%s/%s]\n%s\n", lang, tool, truncStr(out, 1500))
+			outRaw, _ := r["output"].(string)
+			if strings.TrimSpace(outRaw) == "" {
+				continue
+			}
+			fmt.Fprintf(&findings, "[%s/%s]\n%s\n", lang, tool, truncStr(outRaw, 1500))
 		}
 	}
 	diff := ""
 	if diffRef != "" {
-		diff = getDiff(".", diffRef)
+		if repoDir == "" {
+			repoDir = "."
+		}
+		diff = getDiff(repoDir, diffRef)
 	}
 	prompt := "You are a senior code reviewer. Below are static-analysis findings" +
 		" and optionally a git diff. Produce a concise prioritized review: top critical issues, root causes, and concrete fix suggestions. Be specific.\n\nFINDINGS:\n" +
@@ -130,24 +163,29 @@ func aiReviewCmd(reportPath, diffRef string) {
 	fmt.Println("\n[saved ai-review.md]")
 }
 
-// ---- sarif: standard static-analysis output ----
+// sarifCmd: SARIF 2.1.0 вывод
 func sarifCmd(reportPath string) {
 	if reportPath == "" {
 		reportPath = "aitools-report.json"
 	}
-	data, err := os.ReadFile(reportPath)
+	report, err := readReport(reportPath)
 	if err != nil {
-		fmt.Println("No report. Run `aitools review` first.")
+		fmt.Println("Cannot read report:", err)
+		fmt.Println("Run `aitools review` first.")
 		return
 	}
-	var report map[string][]map[string]interface{}
-	json.Unmarshal(data, &report)
 	var results []map[string]interface{}
-	for _, rs := range report {
-		for _, r := range rs {
-			tool, _ := r["tool"].(string)
-			out, _ := r["output"].(string)
-			for _, line := range strings.Split(out, "\n") {
+	langs, _ := report["languages"].([]interface{})
+	for _, langI := range langs {
+		lang, _ := langI.(string)
+		langReport, _ := report[lang].(map[string]interface{})
+		for tool, result := range langReport {
+			r, ok := result.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			outRaw, _ := r["output"].(string)
+			for _, line := range strings.Split(outRaw, "\n") {
 				line = strings.TrimSpace(line)
 				if line == "" {
 					continue
@@ -157,7 +195,7 @@ func sarifCmd(reportPath string) {
 					level = "error"
 				}
 				results = append(results, map[string]interface{}{
-					"ruleId":  tool,
+					"ruleId":  lang + "/" + tool,
 					"level":   level,
 					"message": map[string]string{"text": truncStr(line, 500)},
 				})
@@ -179,7 +217,74 @@ func sarifCmd(reportPath string) {
 	fmt.Printf("✓ SARIF written: aitools-report.sarif.json (%d results)\n", len(results))
 }
 
-// ---- gitignore support for context ----
+// triageCmd: приоритизация findings
+func triageCmd(reportPath string, asJSON bool) {
+	if reportPath == "" {
+		reportPath = "aitools-report.json"
+	}
+	report, err := readReport(reportPath)
+	if err != nil {
+		fmt.Println("Cannot read report:", err)
+		fmt.Println("Run `aitools review` first.")
+		return
+	}
+	type item struct {
+		Lang, Tool, Status string
+		Count              int
+		High               bool
+	}
+	var items []item
+	langs, _ := report["languages"].([]interface{})
+	for _, langI := range langs {
+		lang, _ := langI.(string)
+		langReport, _ := report[lang].(map[string]interface{})
+		for tool, result := range langReport {
+			r, ok := result.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			outRaw, _ := r["output"].(string)
+			status := "ok"
+			if s, ok := r["status"].(string); ok {
+				status = s
+			}
+			count := 0
+			for _, l := range strings.Split(outRaw, "\n") {
+				if strings.TrimSpace(l) != "" {
+					count++
+				}
+			}
+			high := strings.Contains(outRaw, "CRITICAL") || strings.Contains(outRaw, "HIGH")
+			items = append(items, item{lang, tool, status, count, high})
+		}
+	}
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].High != items[j].High {
+			return items[i].High
+		}
+		return items[i].Count > items[j].Count
+	})
+	var md strings.Builder
+	md.WriteString("# AI Tools Triage\n\n")
+	md.WriteString("Prioritized findings (high-severity first, then volume):\n\n")
+	md.WriteString("| Lang | Tool | Findings | High | Status |\n|---|---|---|---|---|\n")
+	for _, it := range items {
+		h := " "
+		if it.High {
+			h = "!"
+		}
+		fmt.Fprintf(&md, "| %s | %s | %d | %s | %s |\n", it.Lang, it.Tool, it.Count, h, it.Status)
+	}
+	md.WriteString("\nRecommendation: fix high-severity items first, then highest-volume tools.\n")
+	if asJSON {
+		b, _ := json.MarshalIndent(items, "", "  ")
+		fmt.Println(string(b))
+	} else {
+		fmt.Println(md.String())
+	}
+}
+
+// loadGitignore / isIgnored - для context (gitignore-aware)
 func loadGitignore(dir string) []string {
 	b, err := os.ReadFile(filepath.Join(dir, ".gitignore"))
 	if err != nil {
