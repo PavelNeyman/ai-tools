@@ -345,14 +345,35 @@ func toolsFetch() {
 
 
 func extractArchive(archivePath, destPath, toolName string) error {
-	if strings.HasSuffix(archivePath, ".tar.gz") || strings.HasSuffix(archivePath, ".tgz") {
+	// Detect format by content (toolsFetch temps often have no extension).
+	f, err := os.Open(archivePath)
+	if err != nil {
+		return err
+	}
+	var magic [6]byte
+	n, _ := f.Read(magic[:])
+	f.Close()
+	switch {
+	case n >= 2 && magic[0] == 0x1f && magic[1] == 0x8b:
 		return extractTarGz(archivePath, destPath, toolName)
-	} else if strings.HasSuffix(archivePath, ".zip") {
+	case n >= 4 && magic[0] == 'P' && magic[1] == 'K' && magic[2] == 3 && magic[3] == 4:
 		return extractZip(archivePath, destPath, toolName)
-	} else if strings.HasSuffix(archivePath, ".tar.xz") {
+	case n >= 6 && magic[0] == 0xfd && magic[1] == '7' && magic[2] == 'z' && magic[3] == 'X' && magic[4] == 'Z' && magic[5] == 0:
 		return extractTarXz(archivePath, destPath, toolName)
 	}
-	return fmt.Errorf("unsupported archive format")
+	// Plain binary (GH release assets like staticcheck-linux-amd64).
+	in, err := os.Open(archivePath)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	_, err = io.Copy(out, in)
+	return err
 }
 
 func extractTarGz(archivePath, destPath, toolName string) error {
