@@ -36,8 +36,6 @@ var llmClient = &http.Client{Timeout: 60 * time.Second}
 
 func llmComplete(prompt string) (string, error) {
 	if p, err := exec.LookPath("llm"); err == nil {
-		ctx, cancel := exec.CommandContext, cancel
-		_ = ctx
 		out, err := exec.Command(p, prompt).CombinedOutput()
 		return string(out), err
 	}
