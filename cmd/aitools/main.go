@@ -128,7 +128,30 @@ func main() {
 			os.Exit(1)
 		}
 	case "review":
+		doAI := hasFlag("--ai")
+		doSarif := hasFlag("--sarif")
+		diffRef := flagValue("--diff")
+		var clean []string
+		clean = append(clean, os.Args[:2]...)
+		for _, a := range os.Args[2:] {
+			if !strings.HasPrefix(a, "--") {
+				clean = append(clean, a)
+			}
+		}
+		os.Args = clean
 		reviewCmd()
+		if doSarif {
+			sarifCmd("aitools-report.json")
+		}
+		if doAI || diffRef != "" {
+			aiReviewCmd("aitools-report.json", diffRef)
+		}
+	case "sarif":
+		p := ""
+		if len(os.Args) > 2 {
+			p = os.Args[2]
+		}
+		sarifCmd(p)
 	default:
 		fmt.Printf("Unknown command: %s\n", cmd)
 		printUsage()
@@ -148,6 +171,8 @@ Commands:
   tools status            Check installed tools
   tools sync <file>       Upload file to sendit.sh with encryption
   review [path]           Run full analysis on repository (default: current dir)
+                          [--ai] LLM review  [--diff=REF] review changes  [--sarif] SARIF output
+  sarif [report]          Convert report to SARIF 2.1.0
   exec <cmd> [args]       Execute command (sandbox bypass)
   read <file>             Read file contents
   write <file> <content>  Write content to file
