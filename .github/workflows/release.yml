@@ -98,6 +98,7 @@ jobs:
           dl EmbarkStudios/cargo-deny cargo-deny
           dl astral-sh/ruff ruff
           dl betterleaks/betterleaks betterleaks
+          dl Wilfred/difftastic difft
           dl trufflesecurity/trufflehog trufflehog
           dl Bearer/bearer bearer
           sudo apt-get update -qq && sudo apt-get install -y cppcheck >/dev/null 2>&1
