@@ -21,3 +21,10 @@ Full command reference: **[docs/USAGE.md](docs/USAGE.md)**
 ## Build
 
 Push tag `v*` -> GitHub Actions builds everything (always latest versions via `go install @latest` + binary `releases/latest` downloads) for linux/amd64.
+
+
+## Security notes
+
+- `encrypt`/`decrypt` use AES-256-GCM (passphrase via arg or `AITOOLS_KEY`).
+- `tools sync` refuses plaintext; requires `AITOOLS_ALLOW_UPLOAD=1`.
+- MCP `exec` requires `AITOOLS_MCP_ALLOW_EXEC=1`.

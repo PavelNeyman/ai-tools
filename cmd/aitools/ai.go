@@ -223,6 +223,9 @@ func mcpCall(self, name string, args map[string]interface{}) string {
 			a = append(a, get("path"))
 		}
 	case "exec":
+		if os.Getenv("AITOOLS_MCP_ALLOW_EXEC") != "1" {
+			return "exec disabled (set AITOOLS_MCP_ALLOW_EXEC=1 to allow)"
+		}
 		a = []string{"exec", "sh", "-c", get("command")}
 	case "read":
 		a = []string{"read", get("path")}

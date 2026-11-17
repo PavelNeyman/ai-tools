@@ -34,15 +34,33 @@ var toolRegistry = map[string][]string{
 	"C++": {"cppcheck","semgrep"},
 }
 
-// getAssetURL fetches download URL for a tool from the latest ai-tools release
+// getAssetURL fetches download URL for a tool from the latest ai-tools release.
 func getAssetURL(toolName string) (string, error) {
-	c := &http.Client{Timeout: 20 * time.Second}
-	resp, err := c.Get("https://api.github.com/repos/PavelNeyman/ai-tools/releases/latest")
+	c := &http.Client{Timeout: 30 * time.Second}
+	req, err := http.NewRequest("GET", "https://api.github.com/repos/PavelNeyman/ai-tools/releases/latest", nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	if tok := strings.TrimSpace(os.Getenv("GITHUB_TOKEN")); tok != "" {
+		req.Header.Set("Authorization", "Bearer "+tok)
+	}
+	resp, err := c.Do(req)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		snippet := string(body)
+		if len(snippet) > 200 {
+			snippet = snippet[:200]
+		}
+		return "", fmt.Errorf("github releases: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(snippet))
+	}
 	var rel struct {
 		Assets []struct {
 			Name               string `json:"name"`
@@ -60,8 +78,6 @@ func getAssetURL(toolName string) (string, error) {
 	}
 	return "", fmt.Errorf("asset not found: %s", want)
 }
-
-
 
 type Language struct {
 	Name    string
@@ -434,29 +450,53 @@ func toolsStatus() {
 }
 
 func toolsSync() {
-	if len(os.Args) < 4 {
+	if len(os.Args) < 3 {
 		fmt.Println("Usage: aitools tools sync <file>")
+		fmt.Println("Uploads ONLY if AITOOLS_ALLOW_UPLOAD=1 and file is aitools-encrypted (.enc).")
 		os.Exit(1)
 	}
-	
-	filePath := os.Args[3]
-	
-	data, err := os.ReadFile(filePath)
+	if os.Getenv("AITOOLS_ALLOW_UPLOAD") != "1" {
+		fmt.Println("Refusing upload: set AITOOLS_ALLOW_UPLOAD=1 to confirm intentional remote share.")
+		fmt.Println("Prefer: AITOOLS_KEY=... aitools encrypt <file> then share the .enc yourself.")
+		os.Exit(1)
+	}
+	path := os.Args[2]
+	data, err := os.ReadFile(path)
 	if err != nil {
-		fmt.Printf("Error reading file: %v\n", err)
+		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
 	}
-	
-	encoded := base64.StdEncoding.EncodeToString(data)
-	
-	resp, err := http.Post("https://sendit.sh", "text/plain", strings.NewReader(encoded))
+	ok := strings.HasSuffix(path, ".enc") || strings.HasSuffix(path, ".encrypted")
+	if !ok {
+		if raw, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(data))); err == nil {
+			ok = len(raw) >= len(cryptoMagic) && string(raw[:len(cryptoMagic)]) == cryptoMagic
+		}
+	}
+	if !ok {
+		fmt.Println("Refusing to upload plaintext. Encrypt first:")
+		fmt.Println("  export AITOOLS_KEY=...")
+		fmt.Println("  aitools encrypt report.json")
+		fmt.Println("  AITOOLS_ALLOW_UPLOAD=1 aitools tools sync report.json.enc")
+		os.Exit(1)
+	}
+	client := &http.Client{Timeout: 60 * time.Second}
+	req, err := http.NewRequest("POST", "https://sendit.sh", strings.NewReader(string(data)))
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+	req.Header.Set("Content-Type", "text/plain")
+	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Printf("Error uploading: %v\n", err)
 		os.Exit(1)
 	}
 	defer resp.Body.Close()
-	
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		fmt.Printf("Upload failed HTTP %d: %s\n", resp.StatusCode, string(body))
+		os.Exit(1)
+	}
 	fmt.Printf("Uploaded: %s\n", string(body))
 }
 
@@ -481,8 +521,6 @@ func reviewCmd() {
 	fmt.Printf("Reviewing: %s\n", absPath)
 	fmt.Printf("Detected languages: %s\n\n", strings.Join(langs, ", "))
 	
-	toolsDir := filepath.Join(os.Getenv("HOME"), ".aitools", "bin")
-	
 	report := make(map[string]interface{})
 	report["path"] = absPath
 	report["languages"] = langs
@@ -495,10 +533,9 @@ func reviewCmd() {
 		fmt.Printf("=== %s Analysis ===\n", lang)
 		
 		for _, tool := range tools {
-			toolPath := filepath.Join(toolsDir, tool)
-			
-			if _, err := os.Stat(toolPath); os.IsNotExist(err) {
-				fmt.Printf("  ⚠ %s not installed\n", tool)
+			toolPath := resolveToolPath(tool)
+			if toolPath == "" {
+				fmt.Printf("  ! %s not installed (run: aitools tools fetch)\n", tool)
 				continue
 			}
 			
@@ -745,61 +782,65 @@ func httpCmd() {
 
 func encryptCmd() {
 	if len(os.Args) < 3 {
-		fmt.Println("Usage: aitools encrypt <file>")
+		fmt.Println("Usage: aitools encrypt <file> [passphrase]")
+		fmt.Println("Passphrase: arg or env AITOOLS_KEY (required).")
+		fmt.Println("Output: <file>.enc  (AES-256-GCM, base64 envelope)")
 		os.Exit(1)
 	}
-	
 	filePath := os.Args[2]
-	
+	pass := cryptoPassphrase()
+	if pass == "" {
+		fmt.Println("Error: passphrase required (arg or AITOOLS_KEY)")
+		os.Exit(1)
+	}
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		fmt.Printf("Error reading file: %v\n", err)
 		os.Exit(1)
 	}
-	
-	encoded := base64.StdEncoding.EncodeToString(data)
-	
-	encryptedPath := filePath + ".encrypted"
-	err = os.WriteFile(encryptedPath, []byte(encoded), 0644)
+	encStr, err := encryptBytes(data, pass)
 	if err != nil {
-		fmt.Printf("Error writing encrypted file: %v\n", err)
+		fmt.Printf("Error encrypting: %v\n", err)
 		os.Exit(1)
 	}
-	
-	fmt.Printf("Encrypted: %s\n", encryptedPath)
+	outPath := filePath + ".enc"
+	if err := os.WriteFile(outPath, []byte(encStr+"\n"), 0o600); err != nil {
+		fmt.Printf("Error writing: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Encrypted (AES-256-GCM): %s\n", outPath)
 }
 
 func decryptCmd() {
 	if len(os.Args) < 3 {
-		fmt.Println("Usage: aitools decrypt <file>")
+		fmt.Println("Usage: aitools decrypt <file.enc> [passphrase]")
+		fmt.Println("Passphrase: arg or env AITOOLS_KEY (required).")
 		os.Exit(1)
 	}
-	
 	filePath := os.Args[2]
-	
+	pass := cryptoPassphrase()
+	if pass == "" {
+		fmt.Println("Error: passphrase required (arg or AITOOLS_KEY)")
+		os.Exit(1)
+	}
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		fmt.Printf("Error reading file: %v\n", err)
 		os.Exit(1)
 	}
-	
-	var decoded []byte
-	decoded, err = base64.StdEncoding.DecodeString(string(data))
+	plain, err := decryptBytes(string(data), pass)
 	if err != nil {
-		fmt.Printf("Error decoding: %v\n", err)
+		fmt.Printf("Error decrypting: %v\n", err)
 		os.Exit(1)
 	}
-	
-	decryptedPath := strings.TrimSuffix(filePath, ".encrypted")
-	if decryptedPath == filePath {
-		decryptedPath = filePath + ".decrypted"
+	outPath := strings.TrimSuffix(filePath, ".enc")
+	outPath = strings.TrimSuffix(outPath, ".encrypted")
+	if outPath == filePath {
+		outPath = filePath + ".decrypted"
 	}
-	
-	err = os.WriteFile(decryptedPath, decoded, 0644)
-	if err != nil {
-		fmt.Printf("Error writing decrypted file: %v\n", err)
+	if err := os.WriteFile(outPath, plain, 0o600); err != nil {
+		fmt.Printf("Error writing: %v\n", err)
 		os.Exit(1)
 	}
-	
-	fmt.Printf("Decrypted: %s\n", decryptedPath)
+	fmt.Printf("Decrypted: %s\n", outPath)
 }

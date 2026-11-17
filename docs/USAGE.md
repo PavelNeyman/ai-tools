@@ -67,7 +67,7 @@ Automatic detection by markers:
 
 ## Security
 
-Encrypt sensitive reports before transmitting: `aitools encrypt aitools-report.json <key>`. Store keys in secrets/env, not CLI history.
+Encrypt sensitive reports: `AITOOLS_KEY=… aitools encrypt aitools-report.json` (AES-256-GCM → `.enc`). Upload only with `AITOOLS_ALLOW_UPLOAD=1`. Store keys in secrets/env, not CLI history.
 
 ## Build
 
