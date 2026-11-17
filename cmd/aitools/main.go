@@ -23,13 +23,13 @@ var Version = "dev"
 var toolRegistry = map[string][]string{
 	"Go": {"staticcheck","gosec","errcheck","govulncheck","golangci-lint","gofumpt","revive",
 		"goimports","bodyclose","unconvert","ineffassign","deadcode","nilaway","gocritic",
-		"osv-scanner","trivy","betterleaks","trufflehog","bearer","ruff","nuclei"},
-	"Rust": {"cargo-audit","cargo-deny","trivy","osv-scanner","semgrep"},
+		"osv-scanner","trivy","betterleaks","trufflehog","bearer","ruff","nuclei","difft","jscpd"},
+	"Rust": {"cargo-audit","cargo-deny","trivy","osv-scanner","semgrep","difft","jscpd"},
 	"Swift": {"swiftlint","trivy","osv-scanner","semgrep"},
 	"Shell": {"shellcheck","semgrep"},
 	"Docker": {"hadolint","trivy"},
-	"Python": {"ruff","semgrep","trivy","osv-scanner","bandit"},
-	"JavaScript": {"semgrep","trivy","osv-scanner","eslint"},
+	"Python": {"ruff","semgrep","trivy","osv-scanner","bandit","jscpd","difft"},
+	"JavaScript": {"semgrep","trivy","osv-scanner","eslint","jscpd","difft"},
 	"C": {"cppcheck","semgrep"},
 	"C++": {"cppcheck","semgrep"},
 }
