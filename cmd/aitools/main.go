@@ -305,14 +305,30 @@ func toolsFetch() {
 
 		resp, err := client.Get(url)
 		if err != nil {
-			fmt.Printf("    ✗ download: %v\n", err)
+			fmt.Printf("    download error: %v\n", err)
 			continue
 		}
-		tmpFile, _ := os.CreateTemp("", "tool-*.tmp")
-		io.Copy(tmpFile, resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+			resp.Body.Close()
+			fmt.Printf("    download HTTP %d: %s\n", resp.StatusCode, strings.TrimSpace(string(snippet)))
+			continue
+		}
+		tmpFile, err := os.CreateTemp("", "tool-*.tmp")
+		if err != nil {
+			resp.Body.Close()
+			fmt.Printf("    tempfile: %v\n", err)
+			continue
+		}
+		_, copyErr := io.Copy(tmpFile, io.LimitReader(resp.Body, 512<<20))
 		tmpFile.Close()
 		resp.Body.Close()
 		tmpPath := tmpFile.Name()
+		if copyErr != nil {
+			os.Remove(tmpPath)
+			fmt.Printf("    download copy: %v\n", copyErr)
+			continue
+		}
 		defer os.Remove(tmpPath)
 
 		if err := extractArchive(tmpPath, destPath, tool); err != nil {
@@ -556,7 +572,7 @@ func reviewCmd() {
 			case "swiftlint":
 				args = []string{"lint", "--reporter=json"}
 			case "shellcheck":
-				args = []string{"-f=json", "-x"}
+				args = shellcheckArgs(absPath)
 			case "hadolint":
 				args = []string{"-f=json", "Dockerfile"}
 			case "cargo-audit":
@@ -776,8 +792,11 @@ func httpCmd() {
 		fmt.Printf("  %s: %s\n", k, strings.Join(v, ", "))
 	}
 	
-	body, _ := io.ReadAll(resp.Body)
-	fmt.Printf("\nBody:\n%s\n", string(body))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		fmt.Printf("Warning: HTTP %d\n", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	fmt.Printf("\nBody (%d bytes, capped 8MiB):\n%s\n", len(body), string(body))
 }
 
 func encryptCmd() {
