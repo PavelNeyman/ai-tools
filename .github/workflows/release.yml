@@ -68,7 +68,7 @@ jobs:
           dl() {
             local repo="$1" name="$2"
             json=$(curl -s "https://api.github.com/repos/${repo}/releases/latest")
-            url=$(echo "$json" | jq -r '.assets[] | select(.name | test("linux";"i")) | select(.name | test("amd64|x86_64|64bit";"i")) | select(.name | test("deb|rpm|apk|sbom|json|txt|sig|pem|cosign|provenance|checksums|sha256|sha512|asc|crt|msi|dmg|pkg|sha";"i") | not) | .browser_download_url' | head -1)
+            url=$(echo "$json" | jq -r '.assets[] | select(.name | test("linux";"i")) | select(.name | test("amd64|x86_64|64bit|x64";"i")) | select(.name | test("deb|rpm|apk|sbom|json|txt|sig|pem|cosign|provenance|checksums|sha256|sha512|asc|crt|msi|dmg|pkg|sha";"i") | not) | .browser_download_url' | head -1)
             [ -z "$url" ] || [ "$url" = "null" ] && { echo "⚠ $name: no linux/amd64 asset"; return 0; }
             echo "↓ $name: $url"
             tmp=$(mktemp -d)
