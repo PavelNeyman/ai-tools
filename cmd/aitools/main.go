@@ -537,6 +537,70 @@ func toolsSync() {
 	fmt.Printf("Uploaded: %s\n", string(body))
 }
 
+// toolArgs returns CLI args for a named analyzer. cmd.Dir is already the
+// repository root; package-oriented Go tools must receive "./...", not ".".
+func toolArgs(tool, absPath string) []string {
+	switch tool {
+	case "gosec":
+		return []string{"-fmt=json", "-quiet", "./..."}
+	case "staticcheck":
+		return []string{"-f=json", "./..."}
+	case "errcheck":
+		return []string{"-ignoretests", "./..."}
+	case "govulncheck":
+		return []string{"./..."}
+	case "deadcode":
+		return []string{"-test=false", "./..."}
+	case "ineffassign":
+		return []string{"./..."}
+	case "nilaway":
+		return []string{"./..."}
+	case "bodyclose", "unconvert", "gocritic":
+		return []string{"./..."}
+	case "golangci-lint":
+		return []string{"run", "--output.json.path=stdout"}
+	case "gofumpt":
+		// list mode; non-zero exit if files need formatting
+		return []string{"-l", "."}
+	case "goimports":
+		return []string{"-l", "."}
+	case "revive":
+		return []string{"-formatter", "json", "./..."}
+	case "trivy":
+		return []string{"fs", "--format=json", "--quiet", "."}
+	case "osv-scanner":
+		return []string{"scan", "source", "--format=json", "-r", "."}
+	case "swiftlint":
+		return []string{"lint", "--reporter=json"}
+	case "shellcheck":
+		return shellcheckArgs(absPath)
+	case "hadolint":
+		return []string{"-f=json", "Dockerfile"}
+	case "cargo-audit":
+		return []string{"audit", "--format=json"}
+	case "cargo-deny":
+		return []string{"check", "--format=json"}
+	case "cppcheck":
+		return []string{"--enable=all", "--output-file=/dev/stdout", "."}
+	case "semgrep":
+		return []string{"scan", "--json", "--config=p/security-audit", "--metrics=off", "."}
+	case "ruff":
+		return []string{"check", "--output-format=json", "."}
+	case "betterleaks":
+		return []string{"git", ".", "--report-format=json", "--report-path=/dev/stdout", "--no-banner"}
+	case "nuclei":
+		return []string{"-jsonl", "-silent", "-u", "."}
+	case "bandit":
+		return []string{"-r", ".", "-f", "json", "-q"}
+	case "eslint":
+		return []string{".", "--format=json"}
+	default:
+		// Prefer package pattern for unknown Go-ish tools; "." was the
+		// historical default and broke module-root analysis.
+		return []string{"./..."}
+	}
+}
+
 func reviewCmd() {
 	path := "."
 	if len(os.Args) > 2 {
@@ -577,64 +641,38 @@ func reviewCmd() {
 			}
 			
 			fmt.Printf("  → Running %s...\n", tool)
-			
-			var args []string
-			switch tool {
-			case "gosec":
-				args = []string{"-fmt=json", "-quiet", "./..."}
-			case "staticcheck":
-				args = []string{"-f=json", "./..."}
-			case "golangci-lint":
-				args = []string{"run", "--output.json.path=stdout"}
-			case "trivy":
-				args = []string{"fs", "--format=json", "--quiet", "."}
-			case "osv-scanner":
-				args = []string{"scan", "source", "--format=json", "-r", "."}
-			case "swiftlint":
-				args = []string{"lint", "--reporter=json"}
-			case "shellcheck":
-				args = shellcheckArgs(absPath)
-			case "hadolint":
-				args = []string{"-f=json", "Dockerfile"}
-			case "cargo-audit":
-				args = []string{"audit", "--format=json"}
-			case "cargo-deny":
-				args = []string{"check", "--format=json"}
-			case "cppcheck":
-				args = []string{"--enable=all", "--output-file=/dev/stdout", "."}
-			case "semgrep":
-				args = []string{"scan", "--json", "--config=p/security-audit", "--metrics=off", "."}
-			case "ruff":
-				args = []string{"check", "--output-format=json", "."}
-			case "betterleaks":
-				args = []string{"git", ".", "--report-format=json", "--report-path=/dev/stdout", "--no-banner"}
-			case "nuclei":
-				args = []string{"-jsonl", "-silent", "-u", "."}
-			case "bandit":
-				args = []string{"-r", ".", "-f", "json", "-q"}
-			case "eslint":
-				args = []string{".", "--format=json"}
-			default:
-				args = []string{"."}
-			}
-			
+
+			// Go analyzers need package patterns under cmd.Dir (= absPath).
+			// Passing bare "." makes deadcode/errcheck/govulncheck report
+			// "no Go files in <absPath>" even when the module is valid.
+			args := toolArgs(tool, absPath)
+
 			cmd := exec.Command(toolPath, args...)
 			cmd.Dir = absPath
-			
-			output, err := cmd.CombinedOutput()
-			if err != nil {
-				fmt.Printf("    ⚠ command failed: %v\n", err)
+
+			output, cmdErr := cmd.CombinedOutput()
+			if cmdErr != nil {
+				fmt.Printf("    ⚠ command failed: %v\n", cmdErr)
 			}
-			
+
 			var result map[string]interface{}
 			if err := json.Unmarshal(output, &result); err == nil {
+				if cmdErr != nil {
+					result["_cmd_error"] = cmdErr.Error()
+				}
 				langReport[tool] = result
 				fmt.Printf("    ✓ completed\n")
 			} else {
-				langReport[tool] = map[string]interface{}{
-					"raw":    string(output),
-					"error":  err != nil,
+				entry := map[string]interface{}{
+					"raw": string(output),
 				}
+				if cmdErr != nil {
+					entry["cmd_error"] = cmdErr.Error()
+				}
+				if len(output) == 0 && cmdErr != nil {
+					entry["error"] = cmdErr.Error()
+				}
+				langReport[tool] = entry
 				fmt.Printf("    ✓ completed (raw output)\n")
 			}
 		}
